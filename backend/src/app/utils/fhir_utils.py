@@ -73,12 +73,12 @@ def extract_observation_value(observation: Dict[str, Any]) -> Optional[Dict[str,
     
     return result
 
-def extract_observations_by_loinc(bundle: Dict[str, Any], loinc_codes: Union[str, List[str]]) -> List[Dict[str, Any]]:
+def extract_observations_by_loinc(bundle_or_entries: Union[Dict[str, Any], List[Dict[str, Any]]], loinc_codes: Union[str, List[str]]) -> List[Dict[str, Any]]:
     """
-    Extract observations from FHIR Bundle by LOINC codes
+    Extract observations from FHIR Bundle or list of entries by LOINC codes
     
     Args:
-        bundle: FHIR Bundle resource
+        bundle_or_entries: FHIR Bundle resource or list of entries
         loinc_codes: Single LOINC code or list of codes
     
     Returns:
@@ -89,9 +89,20 @@ def extract_observations_by_loinc(bundle: Dict[str, Any], loinc_codes: Union[str
     
     observations = []
     
-    for entry in bundle.get("entry", []):
-        resource = entry.get("resource", {})
-        if resource.get("resourceType") != "Observation":
+    # Handle both bundle and direct entries list
+    if isinstance(bundle_or_entries, dict):
+        entries = bundle_or_entries.get("entry", [])
+    else:
+        entries = bundle_or_entries or []
+    
+    for entry in entries:
+        # Handle both bundle entry format and direct resource format
+        if isinstance(entry, dict) and "resource" in entry:
+            resource = entry.get("resource", {})
+        else:
+            resource = entry
+        
+        if not resource or resource.get("resourceType") != "Observation":
             continue
         
         # Check if observation has matching LOINC code
