@@ -431,16 +431,24 @@ class FHIRClient:
     async def get_conditions(self, patient_id: str) -> ConditionsResponse:
         params = {
             "patient": patient_id,
-            "clinical-status": "active,recurrence,relapse"
+            "clinical-status": "active,recurrence,relapse,resolved,remission"
         }
 
         bundle = await self._make_request("GET", "Condition", params=params)
         entries = await self._handle_pagination(bundle)
         
+        # Process all conditions
+        all_conditions = self._process_conditions(entries)
+        
+        # Separate active and resolved conditions
+        active_conditions = [cond for cond in all_conditions if cond.is_active]
+        resolved_conditions = [cond for cond in all_conditions if cond.is_resolved]
+        
         return ConditionsResponse(
             patient_id=patient_id,
-            active_conditions=self._process_conditions(entries),
-            total_conditions=len(entries)
+            active_conditions=active_conditions,
+            resolved_conditions=resolved_conditions,
+            total_conditions=len(all_conditions)
         )
 
     async def get_medications(self, patient_id: str, antibiotics_only: bool = False, vasopressors_only: bool = False) -> MedicationsResponse:
@@ -458,10 +466,19 @@ class FHIRClient:
         bundle = await self._make_request("GET", "MedicationRequest", params=params)
         entries = await self._handle_pagination(bundle)
         
+        # Process all medications
+        all_medications = self._process_medications(entries)
+        
+        # Categorize medications
+        antibiotics = [med for med in all_medications if med.is_antibiotic]
+        vasopressors = [med for med in all_medications if med.is_vasopressor]
+        
         return MedicationsResponse(
             patient_id=patient_id,
-            active_medications=self._process_medications(entries),
-            total_medications=len(entries)
+            active_medications=all_medications,
+            antibiotics=antibiotics,
+            vasopressors=vasopressors,
+            total_medications=len(all_medications)
         )
 
     async def get_fluid_balance(self, patient_id: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> FluidBalanceResponse:
@@ -1141,14 +1158,320 @@ class FHIRClient:
             display_name=observation.get("display_name")
         )
 
-    def _process_encounter(self, entry: Dict[str, Any]) -> Dict[str, Any]:
-        pass
+    def _process_encounter(self, entry: Dict[str, Any]) -> "Encounter":
+        """
+        Process FHIR encounter entry into Encounter model
+        """
+        from app.models.clinical import Encounter, Location, Period
+        from app.utils.date_utils import parse_fhir_datetime
+        
+        encounter = Encounter(id=entry.get("id", ""))
+        
+        # Set basic encounter information
+        encounter.status = entry.get("status")
+        encounter.class_ = entry.get("class")
+        
+        # Process encounter type
+        encounter.type = []
+        if entry.get("type"):
+            for type_item in entry["type"]:
+                encounter.type.append(self._process_codeable_concept(type_item))
+        
+        # Process period
+        if entry.get("period"):
+            period_data = entry["period"]
+            encounter.period = Period(
+                start=parse_fhir_datetime(period_data.get("start")) if period_data.get("start") else None,
+                end=parse_fhir_datetime(period_data.get("end")) if period_data.get("end") else None
+            )
+        
+        # Process hospitalization
+        if entry.get("hospitalization"):
+            hospitalization = entry["hospitalization"]
+            encounter.hospitalization = hospitalization
+            
+            # Extract admission source
+            if hospitalization.get("admitSource"):
+                admit_source = hospitalization["admitSource"]
+                if admit_source.get("coding") and len(admit_source["coding"]) > 0:
+                    encounter.admission_source = admit_source["coding"][0].get("display", "Unknown")
+            
+            # Extract discharge disposition
+            if hospitalization.get("dischargeDisposition"):
+                discharge_disp = hospitalization["dischargeDisposition"]
+                if discharge_disp.get("coding") and len(discharge_disp["coding"]) > 0:
+                    encounter.discharge_disposition = discharge_disp["coding"][0].get("display", "Unknown")
+        
+        # Process location
+        encounter.location = []
+        if entry.get("location"):
+            for loc_item in entry["location"]:
+                location = Location()
+                
+                if loc_item.get("location", {}).get("display"):
+                    location.location = loc_item["location"]["display"]
+                
+                location.status = loc_item.get("status")
+                
+                if loc_item.get("period"):
+                    period_data = loc_item["period"]
+                    location.period = Period(
+                        start=parse_fhir_datetime(period_data.get("start")) if period_data.get("start") else None,
+                        end=parse_fhir_datetime(period_data.get("end")) if period_data.get("end") else None
+                    )
+                
+                encounter.location.append(location)
+        
+        return encounter
 
-    def _process_conditions(self, entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        pass
+    def _process_codeable_concept(self, concept: Dict[str, Any]) -> "CodeableConcept":
+        """
+        Process FHIR CodeableConcept into CodeableConcept model
+        """
+        from app.models.clinical import CodeableConcept, Coding
+        
+        codeable_concept = CodeableConcept()
+        codeable_concept.text = concept.get("text")
+        
+        if concept.get("coding"):
+            for coding_item in concept["coding"]:
+                coding = Coding(
+                    system=coding_item.get("system"),
+                    code=coding_item.get("code"),
+                    display=coding_item.get("display")
+                )
+                codeable_concept.coding.append(coding)
+        
+        return codeable_concept
 
-    def _process_medications(self, entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        pass
+    def _process_conditions(self, entries: List[Dict[str, Any]]) -> List["Condition"]:
+        """
+        Process FHIR condition entries into Condition models
+        """
+        from app.models.clinical import Condition
+        from app.utils.date_utils import parse_fhir_datetime
+        
+        conditions = []
+        
+        for entry in entries:
+            condition = Condition(id=entry.get("id", ""))
+            
+            # Set clinical status
+            clinical_status = entry.get("clinicalStatus", {})
+            if clinical_status.get("coding"):
+                condition.clinical_status = clinical_status["coding"][0].get("code")
+            
+            # Set verification status
+            verification_status = entry.get("verificationStatus", {})
+            if verification_status.get("coding"):
+                condition.verification_status = verification_status["coding"][0].get("code")
+            
+            # Set category
+            condition.category = []
+            if entry.get("category"):
+                for category_item in entry["category"]:
+                    if category_item.get("coding"):
+                        for coding in category_item["coding"]:
+                            condition.category.append(coding.get("code", ""))
+            
+            # Set severity
+            if entry.get("severity"):
+                severity = entry["severity"]
+                if severity.get("coding"):
+                    condition.severity = severity["coding"][0].get("code")
+            
+            # Set code
+            if entry.get("code"):
+                code_concept = entry["code"]
+                if code_concept.get("coding"):
+                    for coding in code_concept["coding"]:
+                        if coding.get("system") == "http://hl7.org/fhir/sid/icd-10-cm":
+                            condition.code = coding.get("code")
+                            break
+                    if not condition.code and code_concept["coding"]:
+                        condition.code = code_concept["coding"][0].get("code")
+                
+                condition.code_text = code_concept.get("text")
+            
+            # Set subject
+            if entry.get("subject", {}).get("reference"):
+                condition.subject = entry["subject"]["reference"]
+            
+            # Set onset date
+            if entry.get("onsetDateTime"):
+                condition.onset_date_time = parse_fhir_datetime(entry["onsetDateTime"])
+            
+            # Set recorded date
+            if entry.get("recordedDate"):
+                condition.recorded_date = parse_fhir_datetime(entry["recordedDate"])
+            
+            # Set abatement date
+            if entry.get("abatementDateTime"):
+                condition.abatement_date_time = parse_fhir_datetime(entry["abatementDateTime"])
+            
+            conditions.append(condition)
+        
+        return conditions
+
+    def _process_medications(self, entries: List[Dict[str, Any]]) -> List["Medication"]:
+        """
+        Process FHIR medication entries into Medication models
+        """
+        from app.models.clinical import Medication, Dosage
+        from app.utils.date_utils import parse_fhir_datetime
+        
+        medications = []
+        
+        for entry in entries:
+            # Skip non-MedicationRequest entries (like included Medication resources)
+            if entry.get("resourceType") != "MedicationRequest":
+                continue
+            
+            medication = Medication(id=entry.get("id", ""))
+            
+            # Set status
+            medication.status = entry.get("status")
+            
+            # Set intent
+            medication.intent = entry.get("intent")
+            
+            # Set authored date
+            if entry.get("authoredOn"):
+                medication.authored_on = parse_fhir_datetime(entry["authoredOn"])
+            
+            # Extract medication name
+            medication_name = None
+            if entry.get("medicationCodeableConcept"):
+                med_concept = entry["medicationCodeableConcept"]
+                if med_concept.get("coding"):
+                    medication_name = med_concept["coding"][0].get("display")
+                elif med_concept.get("text"):
+                    medication_name = med_concept["text"]
+            elif entry.get("medicationReference", {}).get("display"):
+                medication_name = entry["medicationReference"]["display"]
+            
+            medication.medication_name = medication_name
+            
+            # Process dosage instructions
+            medication.dosage_instruction = []
+            if entry.get("dosageInstruction"):
+                for dosage_item in entry["dosageInstruction"]:
+                    dosage = Dosage()
+                    dosage.text = dosage_item.get("text")
+                    dosage.timing = dosage_item.get("timing")
+                    dosage.dose_and_rate = dosage_item.get("doseAndRate")
+                    
+                    # Extract route
+                    if dosage_item.get("route"):
+                        route_concept = dosage_item["route"]
+                        if route_concept.get("coding"):
+                            dosage.route = route_concept["coding"][0].get("display")
+                        elif route_concept.get("text"):
+                            dosage.route = route_concept["text"]
+                    
+                    medication.dosage_instruction.append(dosage)
+            
+            # Classify medication type
+            medication.is_antibiotic = self._is_antibiotic_medication(medication_name)
+            medication.is_vasopressor = self._is_vasopressor_medication(medication_name)
+            
+            medications.append(medication)
+        
+        return medications
+
+    def _is_antibiotic_medication(self, medication_name: Optional[str]) -> bool:
+        """
+        Check if medication is an antibiotic based on name
+        """
+        if not medication_name:
+            return False
+        
+        medication_name = medication_name.lower()
+        antibiotic_keywords = [
+            "antibiotic", "antimicrobial", "penicillin", "amoxicillin", "cephalexin",
+            "ciprofloxacin", "levofloxacin", "azithromycin", "clindamycin", "vancomycin",
+            "metronidazole", "doxycycline", "tetracycline", "erythromycin", "clarithromycin",
+            "ceftriaxone", "cefuroxime", "cephalosporin", "quinolone", "macrolide",
+            "lincomycin", "sulfonamide", "trimethoprim", "sulfamethoxazole", "cefazolin",
+            "ampicillin", "piperacillin", "tazobactam", "meropenem", "imipenem",
+            "gentamicin", "tobramycin", "streptomycin", "neomycin", "rifampin"
+        ]
+        
+        return any(keyword in medication_name for keyword in antibiotic_keywords)
+
+    def _is_vasopressor_medication(self, medication_name: Optional[str]) -> bool:
+        """
+        Check if medication is a vasopressor based on name
+        """
+        if not medication_name:
+            return False
+        
+        medication_name = medication_name.lower()
+        vasopressor_keywords = [
+            "norepinephrine", "epinephrine", "dopamine", "dobutamine", "vasopressin",
+            "phenylephrine", "ephedrine", "midodrine", "methoxamine", "levophed",
+            "adrenaline", "noradrenaline", "pitressin", "neo-synephrine"
+        ]
+        
+        return any(keyword in medication_name for keyword in vasopressor_keywords)
 
     def _process_fluid_balance(self, entries: List[Dict[str, Any]]) -> Dict[str, Any]:
-        pass
+        """
+        Process FHIR fluid balance observations into FluidBalanceResponse data
+        """
+        from app.models.clinical import FluidObservation
+        from app.utils.fhir_utils import extract_observations_by_loinc
+        
+        fluid_intake = []
+        urine_output = []
+        
+        # Process observations by LOINC code
+        observations = extract_observations_by_loinc(entries, ["9192-6", "9187-6", "9188-4"])
+        
+        for obs in observations:
+            fluid_obs = FluidObservation(
+                value=obs.get("value"),
+                unit=obs.get("unit"),
+                timestamp=obs.get("timestamp"),
+                category=self._categorize_fluid_observation(obs.get("loinc_code"))
+            )
+            
+            loinc_code = obs.get("loinc_code")
+            if loinc_code == "9192-6":  # Fluid intake
+                fluid_intake.append(fluid_obs)
+            elif loinc_code in ["9187-6", "9188-4"]:  # Urine output
+                urine_output.append(fluid_obs)
+        
+        # Calculate fluid balance
+        fluid_balance = self._calculate_fluid_balance(fluid_intake, urine_output)
+        
+        return {
+            "fluid_intake": fluid_intake,
+            "urine_output": urine_output,
+            "fluid_balance": fluid_balance
+        }
+
+    def _categorize_fluid_observation(self, loinc_code: Optional[str]) -> str:
+        """
+        Categorize fluid observation based on LOINC code
+        """
+        if loinc_code == "9192-6":
+            return "intake"
+        elif loinc_code == "9187-6":
+            return "urine_output"
+        elif loinc_code == "9188-4":
+            return "urine_output_catheter"
+        else:
+            return "unknown"
+
+    def _calculate_fluid_balance(self, fluid_intake: List["FluidObservation"], urine_output: List["FluidObservation"]) -> Optional[float]:
+        """
+        Calculate net fluid balance
+        """
+        total_intake = sum(obs.value for obs in fluid_intake if obs.value is not None)
+        total_output = sum(obs.value for obs in urine_output if obs.value is not None)
+        
+        if total_intake > 0 or total_output > 0:
+            return total_intake - total_output
+        
+        return None
