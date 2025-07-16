@@ -26,11 +26,12 @@ async def get_conditions(
 @router.get("/patients/{patient_id}/medications", response_model=MedicationsResponse)
 async def get_medications(
     patient_id: str,
-    antibiotics_only: bool = Query(False, description="Filter for antibiotics only"),
-    vasopressors_only: bool = Query(False, description="Filter for vasopressors only"),
+    medication_type: Optional[str] = Query(None, description="Filter medications by type: ANTIBIOTICS, VASOPRESSORS, or ALL"),
     fhir_client: FHIRClient = Depends(get_fhir_client)
 ):
     """Retrieve patient medications with optional filtering"""
+    antibiotics_only = medication_type == "ANTIBIOTICS"
+    vasopressors_only = medication_type == "VASOPRESSORS"
     return await fhir_client.get_medications(patient_id, antibiotics_only, vasopressors_only)
 
 @router.get("/patients/{patient_id}/fluid-balance", response_model=FluidBalanceResponse)
