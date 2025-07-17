@@ -120,12 +120,13 @@ class PatientMatchRequest(BaseModel):
         populate_by_name = True
 
 class PatientMatchResult(BaseModel):
-    patient: PatientResponse
-    score: Optional[float] = None
+    resource: PatientResponse
+    search: Optional[Dict[str, Any]] = None
     
 class PatientMatchResponse(BaseModel):
-    matches: List[PatientMatchResult] = Field(default_factory=list)
+    resourceType: str = "Bundle"
     total: int = 0
+    entry: List[PatientMatchResult] = Field(default_factory=list)
 
 class PatientSummary(BaseModel):
     """Simplified patient summary for lists and quick reference"""
