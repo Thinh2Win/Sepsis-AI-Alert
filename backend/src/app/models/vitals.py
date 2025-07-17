@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, computed_field, validator
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from app.utils.calculations import calculate_mean_arterial_pressure, calculate_pulse_pressure, is_fever
 
@@ -8,26 +8,32 @@ class VitalSign(BaseModel):
     unit: Optional[str] = None
     timestamp: Optional[datetime] = None
     status: Optional[str] = None
-    interpretation: Optional[str] = None
+    interpretation: Optional[Union[str, List[str]]] = None
     reference_range: Optional[str] = None
     loinc_code: Optional[str] = None
     display_name: Optional[str] = None
     
+    def _get_interpretation_codes(self) -> List[str]:
+        """Helper to normalize interpretation to list of codes."""
+        if not self.interpretation:
+            return []
+        if isinstance(self.interpretation, str):
+            return [self.interpretation.upper()]
+        return [code.upper() for code in self.interpretation]
+    
     @computed_field
     @property
     def is_abnormal(self) -> bool:
-        if self.interpretation:
-            abnormal_codes = ["H", "HH", "L", "LL", "A", "AA", "CRITICAL", "PANIC"]
-            return self.interpretation.upper() in abnormal_codes
-        return False
+        codes = self._get_interpretation_codes()
+        abnormal_codes = ["H", "HH", "L", "LL", "A", "AA", "CRITICAL", "PANIC"]
+        return any(code in abnormal_codes for code in codes)
     
     @computed_field
     @property
     def is_critical(self) -> bool:
-        if self.interpretation:
-            critical_codes = ["HH", "LL", "AA", "CRITICAL", "PANIC"]
-            return self.interpretation.upper() in critical_codes
-        return False
+        codes = self._get_interpretation_codes()
+        critical_codes = ["HH", "LL", "AA", "CRITICAL", "PANIC"]
+        return any(code in critical_codes for code in codes)
 
 class BloodPressure(BaseModel):
     systolic: Optional[VitalSign] = None

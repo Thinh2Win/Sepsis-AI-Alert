@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, computed_field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 
 class LabValue(BaseModel):
@@ -7,7 +7,7 @@ class LabValue(BaseModel):
     unit: Optional[str] = None
     timestamp: Optional[datetime] = None
     status: Optional[str] = None
-    interpretation: Optional[str] = None
+    interpretation: Optional[Union[str, List[str]]] = None
     reference_range: Optional[str] = Field(None, alias="referenceRange")
     loinc_code: Optional[str] = None
     display_name: Optional[str] = None
@@ -15,37 +15,41 @@ class LabValue(BaseModel):
     class Config:
         populate_by_name = True
     
+    def _get_interpretation_codes(self) -> List[str]:
+        """Helper to normalize interpretation to list of codes."""
+        if not self.interpretation:
+            return []
+        if isinstance(self.interpretation, str):
+            return [self.interpretation.upper()]
+        return [code.upper() for code in self.interpretation]
+    
     @computed_field
     @property
     def is_abnormal(self) -> bool:
-        if self.interpretation:
-            abnormal_codes = ["H", "HH", "L", "LL", "A", "AA", "CRITICAL", "PANIC"]
-            return self.interpretation.upper() in abnormal_codes
-        return False
+        codes = self._get_interpretation_codes()
+        abnormal_codes = ["H", "HH", "L", "LL", "A", "AA", "CRITICAL", "PANIC"]
+        return any(code in abnormal_codes for code in codes)
     
     @computed_field
     @property
     def is_critical(self) -> bool:
-        if self.interpretation:
-            critical_codes = ["HH", "LL", "AA", "CRITICAL", "PANIC"]
-            return self.interpretation.upper() in critical_codes
-        return False
+        codes = self._get_interpretation_codes()
+        critical_codes = ["HH", "LL", "AA", "CRITICAL", "PANIC"]
+        return any(code in critical_codes for code in codes)
     
     @computed_field
     @property
     def is_high(self) -> bool:
-        if self.interpretation:
-            high_codes = ["H", "HH", "AA"]
-            return self.interpretation.upper() in high_codes
-        return False
+        codes = self._get_interpretation_codes()
+        high_codes = ["H", "HH", "AA"]
+        return any(code in high_codes for code in codes)
     
     @computed_field
     @property
     def is_low(self) -> bool:
-        if self.interpretation:
-            low_codes = ["L", "LL", "AA"]
-            return self.interpretation.upper() in low_codes
-        return False
+        codes = self._get_interpretation_codes()
+        low_codes = ["L", "LL", "AA"]
+        return any(code in low_codes for code in codes)
 
 class CBCResults(BaseModel):
     white_blood_cell_count: Optional[LabValue] = None
