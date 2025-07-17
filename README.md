@@ -143,37 +143,62 @@ The system analyzes comprehensive clinical indicators from standardized FHIR R4 
 Sepsis-AI-Alert/
 ├── README.md                    # Project documentation
 ├── CLAUDE.md                    # Development instructions
+├── LICENSE                      # MIT license
 ├── requirements.txt             # Python dependencies
+├── pytest.ini                   # Test configuration
+├── private.pem                  # RSA private key for JWT
+├── public_cert.pem              # Public certificate
+├── docs/                        # Documentation files
+│   ├── API_DOCUMENTATION.md     # Comprehensive API docs
+│   └── public.jwks              # JSON Web Key Set
 ├── backend/src/
 │   ├── main.py                  # Application entry point
 │   ├── auth.py                  # Legacy auth (preserved)
 │   ├── config.py                # Legacy config (preserved)
-│   ├── fetch_patient.py         # Legacy FHIR client (preserved)
-│   └── app/                     # New modular FastAPI structure
-│       ├── main.py              # FastAPI application
-│       ├── core/                # Core functionality
-│       │   ├── config.py        # Settings management
-│       │   ├── dependencies.py  # Dependency injection
-│       │   ├── exceptions.py    # Custom exceptions
-│       │   ├── middleware.py    # Request middleware
-│       │   └── loinc_codes.py   # LOINC code mappings
-│       ├── models/              # Pydantic models
-│       │   ├── patient.py       # Patient demographics
-│       │   ├── vitals.py        # Vital signs with scoring
-│       │   ├── labs.py          # Laboratory results
-│       │   └── clinical.py      # Clinical context
-│       ├── routers/             # API endpoints
-│       │   ├── patients.py      # Patient endpoints
-│       │   ├── vitals.py        # Vital signs endpoints
-│       │   ├── labs.py          # Laboratory endpoints
-│       │   └── clinical.py      # Clinical context endpoints
-│       ├── services/            # Business logic
-│       │   ├── auth_client.py   # OAuth2 authentication
-│       │   └── fhir_client.py   # FHIR API client
-│       └── utils/               # Utility functions
-│           ├── calculations.py  # Clinical calculations
-│           ├── date_utils.py    # Date/time utilities
-│           └── fhir_utils.py    # FHIR processing utilities
+│   ├── app/                     # New modular FastAPI structure
+│   │   ├── __init__.py
+│   │   ├── main.py              # FastAPI application
+│   │   ├── core/                # Core functionality
+│   │   │   ├── __init__.py
+│   │   │   ├── config.py        # Pydantic settings management
+│   │   │   ├── dependencies.py  # Dependency injection
+│   │   │   ├── exceptions.py    # Custom exceptions
+│   │   │   ├── middleware.py    # Request logging middleware
+│   │   │   └── loinc_codes.py   # Comprehensive LOINC mappings
+│   │   ├── models/              # Pydantic data models
+│   │   │   ├── __init__.py
+│   │   │   ├── patient.py       # Patient demographics with computed fields
+│   │   │   ├── vitals.py        # Vital signs with sepsis scoring
+│   │   │   ├── labs.py          # Laboratory results by category
+│   │   │   └── clinical.py      # Clinical context models
+│   │   ├── routers/             # FastAPI route handlers
+│   │   │   ├── __init__.py
+│   │   │   ├── patients.py      # Patient demographics endpoints
+│   │   │   ├── vitals.py        # Vital signs endpoints
+│   │   │   ├── labs.py          # Laboratory results endpoints
+│   │   │   └── clinical.py      # Clinical context endpoints
+│   │   ├── services/            # Business logic services
+│   │   │   ├── __init__.py
+│   │   │   ├── auth_client.py   # Enhanced OAuth2 JWT authentication
+│   │   │   └── fhir_client.py   # Comprehensive FHIR R4 client
+│   │   └── utils/               # Utility functions
+│   │       ├── __init__.py
+│   │       ├── calculations.py  # Clinical calculations (age, BMI, etc.)
+│   │       ├── date_utils.py    # FHIR datetime utilities
+│   │       └── fhir_utils.py    # FHIR bundle processing
+│   └── tests/                   # Comprehensive test suite
+│       ├── __init__.py
+│       ├── conftest.py          # Pytest configuration
+│       ├── fixtures/            # Test data fixtures
+│       │   ├── __init__.py
+│       │   └── fhir_responses.py # Mock FHIR response data
+│       ├── test_endpoints/      # API endpoint tests
+│       │   ├── __init__.py
+│       │   ├── test_clinical.py # Clinical endpoints tests
+│       │   ├── test_labs.py     # Laboratory endpoints tests
+│       │   ├── test_patients.py # Patient endpoints tests
+│       │   └── test_vitals.py   # Vital signs endpoints tests
+│       └── test_fhir_client.py  # FHIR client service tests
 └── venv/                        # Python virtual environment
 ```
 
@@ -182,31 +207,60 @@ Sepsis-AI-Alert/
 ## 🚀 API Endpoints
 
 ### Patient Demographics
-- `GET /api/v1/sepsis-alert/patients/{patient_id}` - Patient demographics with computed age, BMI
-- `POST /api/v1/sepsis-alert/patients/match` - Patient matching by demographics
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}`** - Patient demographics with computed fields
+  - Returns: Patient info with calculated age, BMI, primary contact
+  - Features: FHIR Patient resource integration, height/weight observations
+- **`POST /api/v1/sepsis-alert/patients/match`** - Patient matching by demographics
+  - Returns: Ranked patient matches with similarity scores
+  - Features: Fuzzy matching, demographic-based search
 
 ### Vital Signs
-- `GET /api/v1/sepsis-alert/patients/{patient_id}/vitals` - Time-series vital signs with sepsis scoring
-- `GET /api/v1/sepsis-alert/patients/{patient_id}/vitals/latest` - Most recent vitals with risk assessment
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/vitals`** - Time-series vital signs
+  - Parameters: `start_date`, `end_date`, `vital_type` (HR, BP, TEMP, RR, SPO2, GCS)
+  - Returns: Complete vital signs with sepsis scoring and clinical interpretation
+  - Features: LOINC-based filtering, concurrent FHIR calls, trend analysis
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/vitals/latest`** - Most recent vitals
+  - Returns: Latest value for each vital sign type with risk assessment
+  - Features: Optimized for real-time dashboards, parallel data retrieval
 
 ### Laboratory Results
-- `GET /api/v1/sepsis-alert/patients/{patient_id}/labs` - Comprehensive lab results by category
-- `GET /api/v1/sepsis-alert/patients/{patient_id}/labs/critical` - Critical/abnormal lab values
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/labs`** - Comprehensive lab results
+  - Parameters: `start_date`, `end_date`, `lab_category` (CBC, METABOLIC, LIVER, INFLAMMATORY, BLOOD_GAS, COAGULATION)
+  - Returns: Lab results organized by clinical category with organ dysfunction assessment
+  - Features: LOINC code mapping, infection indicators, sepsis scoring
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/labs/critical`** - Critical lab values
+  - Returns: Abnormal values with interpretation flags and clinical significance
+  - Features: Alert optimization, sepsis likelihood assessment
 
 ### Clinical Context
-- `GET /api/v1/sepsis-alert/patients/{patient_id}/encounter` - Current encounter information
-- `GET /api/v1/sepsis-alert/patients/{patient_id}/conditions` - Active conditions and diagnoses
-- `GET /api/v1/sepsis-alert/patients/{patient_id}/medications` - Medications with antibiotic/vasopressor filtering
-- `GET /api/v1/sepsis-alert/patients/{patient_id}/fluid-balance` - Fluid intake/output analysis
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/encounter`** - Current encounter
+  - Returns: Encounter details with ICU status, length of stay, admission type
+  - Features: Location-based ICU detection, stay duration calculation
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/conditions`** - Active conditions
+  - Returns: Conditions with infection/sepsis classification
+  - Features: ICD-10 coding, severity assessment, infection detection
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/medications`** - Medications
+  - Parameters: `medication_type` (ANTIBIOTICS, VASOPRESSORS, ALL)
+  - Returns: Categorized medications with dosage and administration details
+  - Features: Antibiotic class identification, vasopressor detection
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/fluid-balance`** - Fluid balance
+  - Parameters: `start_date`, `end_date`
+  - Returns: Intake/output analysis with oliguria detection
+  - Features: Net balance calculation, hourly urine rate monitoring
+
+### System Endpoints
+- **`GET /health`** - Application health check
+- **`GET /api/docs`** - Interactive API documentation (Swagger UI)
 
 ---
 
 ## 🔧 Installation & Setup
 
 ### Prerequisites
-- Python 3.8+
-- Epic FHIR R4 sandbox credentials
-- Virtual environment (recommended)
+- **Python 3.8+** with pip
+- **Epic FHIR R4 sandbox credentials** (client ID, private key)
+- **Virtual environment** (recommended)
+- **Git** for cloning the repository
 
 ### Installation Steps
 
@@ -218,7 +272,10 @@ Sepsis-AI-Alert/
 
 2. **Create and activate virtual environment**
    ```bash
+   # Create virtual environment
    python -m venv venv
+   
+   # Activate virtual environment
    # Windows
    venv\Scripts\activate
    # Unix/macOS
@@ -231,26 +288,97 @@ Sepsis-AI-Alert/
    ```
 
 4. **Configure environment variables**
-   Create `backend/src/.env` file:
+   Create `backend/src/.env` file with your Epic FHIR credentials:
    ```env
+   # Epic FHIR Configuration
    CLIENT_ID=your_epic_client_id
    TOKEN_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token
-   PRIVATE_KEY_PATH=path/to/private_key.pem
+   PRIVATE_KEY_PATH=./private.pem
    FHIR_API_BASE=https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4
+   
+   # Application Configuration
+   LOG_LEVEL=INFO
+   API_HOST=localhost
+   API_PORT=8000
    ```
 
-5. **Run the application**
+5. **Set up RSA private key**
+   - Place your Epic FHIR private key as `private.pem` in the project root
+   - Ensure proper file permissions: `chmod 600 private.pem` (Unix/macOS)
+
+6. **Run the application**
    ```bash
    cd backend/src
+   
+   # Option 1: Direct Python execution
    python main.py
-   # or
-   uvicorn main:app --reload
+   
+   # Option 2: Using uvicorn (recommended for development)
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   
+   # Option 3: Production mode
+   uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
    ```
 
+### Running Tests
+
+The project includes a comprehensive test suite using pytest:
+
+```bash
+# Run all tests
+pytest
+
+# Run tests with coverage
+pytest --cov=app
+
+# Run specific test files
+pytest backend/src/tests/test_endpoints/test_patients.py
+
+# Run tests with verbose output
+pytest -v
+
+# Run tests and generate HTML coverage report
+pytest --cov=app --cov-report=html
+```
+
 ### Testing the API
-- Health check: `GET http://localhost:8000/health`
-- API documentation: `http://localhost:8000/api/docs`
-- Patient data: `GET http://localhost:8000/api/v1/sepsis-alert/patients/{patient_id}`
+
+1. **Health Check**
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+2. **API Documentation**
+   - Swagger UI: `http://localhost:8000/api/docs`
+   - ReDoc: `http://localhost:8000/redoc`
+
+3. **Sample API Calls** (with Epic FHIR sandbox)
+   ```bash
+   # Get patient demographics
+   curl -X GET \
+     "http://localhost:8000/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB" \
+     -H "Accept: application/json"
+   
+   # Get patient vital signs
+   curl -X GET \
+     "http://localhost:8000/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB/vitals/latest" \
+     -H "Accept: application/json"
+   ```
+
+### Development Setup
+
+For development with auto-reload and debugging:
+
+```bash
+# Install development dependencies (if any)
+pip install -r requirements-dev.txt  # if exists
+
+# Run with debug mode and auto-reload
+uvicorn app.main:app --reload --debug --host 0.0.0.0 --port 8000
+
+# Run tests in watch mode (requires pytest-watch)
+ptw backend/src/tests/
+```
 
 ---
 
