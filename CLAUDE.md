@@ -41,10 +41,10 @@ The project uses a Python virtual environment located in the `venv/` directory. 
 
 ### Current Backend Structure (`backend/src/`)
 
-#### Legacy Files (Preserved)
+#### Application Entry Point
 - **main.py**: Application entry point that imports from new modular structure
-- **auth.py**: Legacy Epic OAuth2 JWT authentication client (preserved for reference)
-- **config.py**: Legacy environment configuration (preserved for reference)
+
+#### Legacy Files (Preserved)
 - **fetch_patient.py**: Legacy FHIR client utility (preserved for reference)
 
 #### New Modular Structure (`backend/src/app/`)

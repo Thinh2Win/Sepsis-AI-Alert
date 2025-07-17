@@ -153,8 +153,6 @@ Sepsis-AI-Alert/
 │   └── public.jwks              # JSON Web Key Set
 ├── backend/src/
 │   ├── main.py                  # Application entry point
-│   ├── auth.py                  # Legacy auth (preserved)
-│   ├── config.py                # Legacy config (preserved)
 │   ├── app/                     # New modular FastAPI structure
 │   │   ├── __init__.py
 │   │   ├── main.py              # FastAPI application
