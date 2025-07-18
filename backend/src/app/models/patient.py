@@ -17,7 +17,7 @@ class PatientResponse(BaseModel):
     id: str
     active: Optional[bool] = None
     gender: Optional[str] = None
-    birth_date: Optional[date] = Field(None, alias="birthDate")
+    birth_date: Optional[date] = Field(None)
     
     # Flattened address fields
     primary_address: Optional[str] = None
