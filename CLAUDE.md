@@ -21,7 +21,14 @@ This is a Sepsis AI EHR Alert System - an AI-powered Clinical Decision Support (
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the FastAPI development server (new modular structure)
+# Recommended: Automated server startup (handles venv activation and directory navigation)
+python start_server.py
+
+# Alternative: Manual server startup
+# First activate virtual environment:
+# Windows: venv\Scripts\activate
+# Unix/macOS: source venv/bin/activate
+# Then run the FastAPI development server (new modular structure)
 cd backend/src
 python main.py
 # or
@@ -33,7 +40,9 @@ python backend/src/fetch_patient.py
 
 ### Virtual Environment
 
-The project uses a Python virtual environment located in the `venv/` directory. To activate it:
+The project uses a Python virtual environment located in the `venv/` directory. The `start_server.py` script automatically handles virtual environment activation when starting the server.
+
+For manual activation (if needed):
 - Windows: `venv\Scripts\activate`
 - Unix/macOS: `source venv/bin/activate`
 
@@ -43,9 +52,6 @@ The project uses a Python virtual environment located in the `venv/` directory. 
 
 #### Application Entry Point
 - **main.py**: Application entry point that imports from new modular structure
-
-#### Legacy Files (Preserved)
-- **fetch_patient.py**: Legacy FHIR client utility (preserved for reference)
 
 #### New Modular Structure (`backend/src/app/`)
 

@@ -146,6 +146,7 @@ Sepsis-AI-Alert/
 ├── LICENSE                      # MIT license
 ├── requirements.txt             # Python dependencies
 ├── pytest.ini                   # Test configuration
+├── start_server.py              # Automated server startup script
 ├── private.pem                  # RSA private key for JWT
 ├── public_cert.pem              # Public certificate
 ├── docs/                        # Documentation files
@@ -307,16 +308,18 @@ Sepsis-AI-Alert/
 
 6. **Run the application**
    ```bash
+   # Recommended: Automated startup script (handles venv activation and directory navigation)
+   python start_server.py
+   
+   # Alternative: Manual startup
+   # First activate virtual environment:
+   # Windows: venv\Scripts\activate
+   # Unix/macOS: source venv/bin/activate
+   # Then navigate and start server:
    cd backend/src
-   
-   # Option 1: Direct Python execution
    python main.py
-   
-   # Option 2: Using uvicorn (recommended for development)
+   # or
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   
-   # Option 3: Production mode
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
    ```
 
 ### Running Tests
@@ -388,10 +391,19 @@ pytest --cov=app --cov-report=html
 For development with auto-reload and debugging:
 
 ```bash
+# Recommended: Use the automated startup script
+python start_server.py
+
+# Alternative: Manual development setup
+# First activate virtual environment:
+# Windows: venv\Scripts\activate
+# Unix/macOS: source venv/bin/activate
+
 # Install development dependencies (if any)
 pip install -r requirements-dev.txt  # if exists
 
 # Run with debug mode and auto-reload
+cd backend/src
 uvicorn app.main:app --reload --debug --host 0.0.0.0 --port 8000
 
 # Run tests in watch mode (requires pytest-watch)
