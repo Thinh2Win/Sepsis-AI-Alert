@@ -110,11 +110,18 @@ curl -X GET \
 **Request Body:**
 ```json
 {
-  "given_name": "string",
-  "family_name": "string",
-  "birth_date": "YYYY-MM-DD",
-  "gender": "string",
-  "identifier": "string"
+  "given": "string",
+  "family": "string",
+  "birthDate": "YYYY-MM-DD",
+  "phone": "string (optional)",
+  "address": {
+    "line": ["string"],
+    "city": "string",
+    "state": "string",
+    "postalCode": "string",
+    "country": "string",
+    "use": "string"
+  }
 }
 ```
 
@@ -123,17 +130,52 @@ curl -X GET \
 - **Body Schema:** PatientMatchResponse model
   ```json
   {
-    "matches": [
+    "resourceType": "Bundle",
+    "total": 1,
+    "entry": [
       {
-        "patient_id": "string",
-        "match_score": 0.95,
-        "patient_info": {
-          "name": {
-            "given": ["string"],
-            "family": "string"
-          },
-          "birth_date": "YYYY-MM-DD",
-          "gender": "string"
+        "resource": {
+          "id": "string",
+          "name": [
+            {
+              "family": "string",
+              "given": ["string"],
+              "use": "official"
+            }
+          ],
+          "birthDate": "YYYY-MM-DD",
+          "gender": "string",
+          "telecom": [
+            {
+              "system": "phone",
+              "value": "string",
+              "use": "home"
+            }
+          ],
+          "address": [
+            {
+              "line": ["string"],
+              "city": "string",
+              "state": "string",
+              "postalCode": "string",
+              "country": "string",
+              "use": "home"
+            }
+          ],
+          "age": 77,
+          "primary_name": "string",
+          "primary_phone": "string",
+          "primary_address": "string"
+        },
+        "search": {
+          "mode": "match",
+          "score": 1.0,
+          "extension": [
+            {
+              "valueCode": "certain",
+              "url": "http://hl7.org/fhir/StructureDefinition/match-grade"
+            }
+          ]
         }
       }
     ]
@@ -151,21 +193,29 @@ curl -X GET \
 ```bash
 curl -X POST \
   "http://localhost:8000/api/v1/sepsis-alert/patients/match" \
-  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
-  -H "Accept: application/fhir+json" \
   -H "Content-Type: application/json" \
   -d '{
-    "given_name": "John",
-    "family_name": "Doe",
-    "birth_date": "1980-01-01",
-    "gender": "male"
+    "given": "Theodore",
+    "family": "Mychart",
+    "birthDate": "1948-07-07",
+    "phone": "+1 608-213-5806",
+    "address": {
+      "line": ["134 Elmstreet"],
+      "city": "Madison",
+      "state": "WI",
+      "postalCode": null,
+      "country": "US",
+      "use": "home"
+    }
   }'
 ```
 
 **Notes:**
-- Returns ranked matches based on demographic similarity
-- Match score ranges from 0.0 to 1.0
-- Supports fuzzy matching for name variations
+- Uses FHIR Patient.$match operation with `onlyCertainMatches: true`
+- Returns Bundle with matched Patient resources and confidence scores
+- Match score ranges from 0.0 to 1.0 (1.0 = perfect match)
+- Match grade extension indicates certainty level ("certain", "probable", "possible")
+- Supports patient matching based on name, birth date, phone, and address
 
 ---
 
