@@ -283,6 +283,83 @@ Returns: Bundle of Observation resources
 
 
 
+1.1. Patient Matching Endpoints
+FastAPI: POST /api/v1/sepsis-alert/patients/match
+
+Request Body (PatientMatchRequest):
+```json
+{
+  "given": "Theodore",
+  "family": "Mychart",
+  "birthDate": "1948-07-07",
+  "phone": "+1 608-213-5806",
+  "address": {
+    "line": ["134 Elmstreet"],
+    "city": "Madison",
+    "state": "WI",
+    "postalCode": null,
+    "country": "US",
+    "use": "home"
+  }
+}
+```
+
+FHIR Operations:
+
+Patient.$match (R4)
+
+Endpoint: POST [base]/Patient/$match
+Internal Parameters Structure (sent by FastAPI):
+```json
+{
+  "resourceType": "Parameters",
+  "parameter": [
+    {
+      "name": "resource",
+      "resource": {
+        "resourceType": "Patient",
+        "name": [{"family": "Mychart", "given": ["Theodore"]}],
+        "birthDate": "1948-07-07",
+        "telecom": [{"system": "phone", "value": "+1 608-213-5806", "use": "home"}],
+        "address": [{"line": ["134 Elmstreet"], "city": "Madison", "state": "WI", "postalCode": null, "country": "US", "use": "home"}]
+      }
+    },
+    {
+      "name": "onlyCertainMatches",
+      "valueBoolean": true
+    }
+  ]
+}
+```
+
+Returns: Bundle with matched Patient resources and match scores
+
+Response (PatientMatchResponse):
+```json
+{
+  "resourceType": "Bundle",
+  "total": 1,
+  "entry": [
+    {
+      "resource": {
+        "id": "e63wRTbPfr1p8UW81d8Seiw3",
+        "name": [{"family": "Mychart", "given": ["Theodore"]}],
+        "birthDate": "1948-07-07",
+        "gender": "male",
+        "age": 77,
+        "primary_name": "Theodore Mychart",
+        "primary_phone": "+1 608-213-5806"
+      },
+      "search": {
+        "mode": "match",
+        "score": 1,
+        "extension": [{"valueCode": "certain", "url": "http://hl7.org/fhir/StructureDefinition/match-grade"}]
+      }
+    }
+  ]
+}
+```
+
 2. Vital Signs Endpoints
 FastAPI: GET /api/v1/sepsis-alert/patients/{patient_id}/vitals
 FHIR Operations - All use Observation.Search (R4):

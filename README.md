@@ -209,8 +209,9 @@ Sepsis-AI-Alert/
   - Returns: Patient info with calculated age, BMI, primary contact
   - Features: FHIR Patient resource integration, height/weight observations
 - **`POST /api/v1/sepsis-alert/patients/match`** - Patient matching by demographics
-  - Returns: Ranked patient matches with similarity scores
-  - Features: Fuzzy matching, demographic-based search
+  - Request Body: `PatientMatchRequest` with given name, family name, birth date, phone, and address
+  - Returns: Ranked patient matches with similarity scores and match confidence
+  - Features: FHIR Patient.$match operation, demographic-based search with certainty grading
 
 ### Vital Signs
 - **`GET /api/v1/sepsis-alert/patients/{patient_id}/vitals`** - Time-series vital signs
@@ -356,6 +357,25 @@ pytest --cov=app --cov-report=html
    curl -X GET \
      "http://localhost:8000/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB" \
      -H "Accept: application/json"
+   
+   # Match patient by demographics
+   curl -X POST \
+     "http://localhost:8000/api/v1/sepsis-alert/patients/match" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "given": "Theodore",
+       "family": "Mychart",
+       "birthDate": "1948-07-07",
+       "phone": "+1 608-213-5806",
+       "address": {
+         "line": ["134 Elmstreet"],
+         "city": "Madison",
+         "state": "WI",
+         "postalCode": null,
+         "country": "US",
+         "use": "home"
+       }
+     }'
    
    # Get patient vital signs
    curl -X GET \
