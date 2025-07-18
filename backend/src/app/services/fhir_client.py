@@ -8,7 +8,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from app.core.config import settings
 from app.core.exceptions import FHIRException, PaginationException
 from app.services.auth_client import EpicAuthClient
-from app.models.patient import PatientResponse, PatientMatchRequest, PatientMatchResponse
+from app.models.patient import PatientMatchResult, PatientResponse, PatientMatchRequest, PatientMatchResponse
 from app.models.vitals import VitalSignsResponse, VitalSignsLatestResponse, VitalSignsTimeSeries, VitalSignsData, VitalSign, BloodPressure
 from app.models.labs import LabResultsResponse, CriticalLabsResponse
 from app.models.clinical import EncounterResponse, ConditionsResponse, MedicationsResponse, FluidBalanceResponse
@@ -236,7 +236,24 @@ class FHIRClient:
         }
 
         data = await self._make_request("POST", "Patient/$match", data=parameters)
-        return PatientMatchResponse(**data)
+        
+        # Process the raw FHIR response to populate PatientResponse objects
+        processed_entries = []
+        for entry in data.get("entry", []):
+            raw_patient = entry.get("resource", {})
+            if raw_patient.get("resourceType") == "Patient":
+                # Process the Patient resource into PatientResponse
+                processed_patient = self._process_patient_match_result(raw_patient)
+                processed_entries.append(PatientMatchResult(
+                    resource=processed_patient,
+                    search=entry.get("search")
+                ))
+        
+        return PatientMatchResponse(
+            resourceType=data.get("resourceType", "Bundle"),
+            total=data.get("total", 0),
+            entry=processed_entries
+        )
 
     async def get_vitals(self, patient_id: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, vital_type: Optional[str] = None) -> VitalSignsResponse:
         """
@@ -627,6 +644,45 @@ class FHIRClient:
                 "error": str(e)
             }
 
+
+    def _process_patient_match_result(self, patient_resource: Dict[str, Any]) -> PatientResponse:
+        """
+        Process a FHIR Patient resource from match results into PatientResponse
+        """
+        try:
+            # Extract demographics using existing utilities
+            demographics = extract_patient_demographics(patient_resource)
+            
+            # Extract primary name and phone
+            primary_name = self._extract_primary_name(demographics.get("names", []))
+            primary_phone = self._extract_primary_phone(demographics.get("telecoms", []))
+            
+            # Extract address fields directly
+            address_data = self._extract_primary_address(demographics.get("addresses", []))
+            
+            # Create simplified patient response (skip height/weight for match operations)
+            return PatientResponse(
+                id=patient_resource.get("id"),
+                active=patient_resource.get("active"),
+                gender=demographics.get("gender"),
+                birth_date=demographics.get("birth_date"),
+                primary_address=address_data.get("primary_address"),
+                city=address_data.get("city"),
+                state=address_data.get("state"),
+                postal_code=address_data.get("postal_code"),
+                height_cm=None,  # Skip for match operations
+                weight_kg=None,  # Skip for match operations
+                primary_name=primary_name,
+                primary_phone=primary_phone
+            )
+            
+        except Exception as e:
+            logger.error(f"Error processing patient match result: {str(e)}")
+            # Return minimal patient response with just ID
+            return PatientResponse(
+                id=patient_resource.get("id", "unknown"),
+                primary_name=primary_name if 'primary_name' in locals() else None
+            )
 
     def _extract_primary_name(self, names: List[Dict[str, Any]]) -> Optional[str]:
         """Extract primary name from FHIR names array"""
