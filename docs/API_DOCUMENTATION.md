@@ -46,27 +46,18 @@ Accept: application/fhir+json
   ```json
   {
     "id": "string",
-    "name": {
-      "given": ["string"],
-      "family": "string"
-    },
     "gender": "string",
     "birth_date": "YYYY-MM-DD",
     "age": 45,
-    "height": 175.0,
-    "weight": 70.0,
+    "primary_address": "123 Main St, Apt 4B",
+    "city": "Chicago",
+    "state": "IL",
+    "postal_code": "60601",
+    "height_cm": 175.0,
+    "weight_kg": 70.0,
     "bmi": 22.9,
-    "primary_contact": {
-      "name": "string",
-      "relationship": "string",
-      "phone": "string"
-    },
-    "address": {
-      "line": ["string"],
-      "city": "string",
-      "state": "string",
-      "postal_code": "string"
-    }
+    "primary_name": "Theodore Mychart",
+    "primary_phone": "+1 608-213-5806"
   }
   ```
 
@@ -87,8 +78,9 @@ curl -X GET \
 
 **Notes:**
 - Age is calculated from birth_date
-- BMI is computed from height/weight observations
-- Primary contact is extracted from Patient.contact array
+- BMI is computed from height_cm/weight_kg observations
+- Primary name and phone are extracted from FHIR Patient resource
+- Address fields are flattened from FHIR Address structure
 
 ---
 
@@ -152,20 +144,16 @@ curl -X GET \
               "use": "home"
             }
           ],
-          "address": [
-            {
-              "line": ["string"],
-              "city": "string",
-              "state": "string",
-              "postalCode": "string",
-              "country": "string",
-              "use": "home"
-            }
-          ],
           "age": 77,
-          "primary_name": "string",
-          "primary_phone": "string",
-          "primary_address": "string"
+          "primary_address": "134 Elmstreet",
+          "city": "Madison",
+          "state": "WI",
+          "postal_code": null,
+          "height_cm": 175.0,
+          "weight_kg": 70.0,
+          "bmi": 22.9,
+          "primary_name": "Theodore Mychart",
+          "primary_phone": "+1 608-213-5806"
         },
         "search": {
           "mode": "match",

@@ -219,7 +219,7 @@ Urine output
 - [x] **Configuration Management**: Environment-based settings with validation
 
 #### Data Models & Validation
-- [x] **Patient Models**: Demographics with computed fields (age, BMI, contacts)
+- [x] **Patient Models**: Simplified demographics with flattened address and demographic fields
 - [x] **Vital Signs Models**: Time-series data with clinical interpretation and sepsis scoring
 - [x] **Laboratory Models**: Organized by category with organ dysfunction assessment
 - [x] **Clinical Models**: Encounters, conditions, medications, fluid balance
@@ -270,7 +270,7 @@ Patient.Read (R4)
 
 Endpoint: GET [base]/Patient/{id}
 Input: id = Patient FHIR ID (not MRN)
-Returns: Single Patient resource
+Returns: Simplified Patient resource with flattened fields
 
 
 Observation.Search (R4) - For Height/Weight/BMI
@@ -349,10 +349,16 @@ Response (PatientMatchResponse):
     {
       "resource": {
         "id": "e63wRTbPfr1p8UW81d8Seiw3",
-        "name": [{"family": "Mychart", "given": ["Theodore"]}],
-        "birthDate": "1948-07-07",
         "gender": "male",
+        "birth_date": "1948-07-07",
         "age": 77,
+        "primary_address": "134 Elmstreet",
+        "city": "Madison",
+        "state": "WI",
+        "postal_code": "53706",
+        "height_cm": 175.0,
+        "weight_kg": 70.0,
+        "bmi": 22.9,
         "primary_name": "Theodore Mychart",
         "primary_phone": "+1 608-213-5806"
       },

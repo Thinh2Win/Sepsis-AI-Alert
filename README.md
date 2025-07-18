@@ -166,7 +166,7 @@ Sepsis-AI-Alert/
 │   │   │   └── loinc_codes.py   # Comprehensive LOINC mappings
 │   │   ├── models/              # Pydantic data models
 │   │   │   ├── __init__.py
-│   │   │   ├── patient.py       # Patient demographics with computed fields
+│   │   │   ├── patient.py       # Simplified patient demographics with flattened fields
 │   │   │   ├── vitals.py        # Vital signs with sepsis scoring
 │   │   │   ├── labs.py          # Laboratory results by category
 │   │   │   └── clinical.py      # Clinical context models
@@ -207,8 +207,8 @@ Sepsis-AI-Alert/
 
 ### Patient Demographics
 - **`GET /api/v1/sepsis-alert/patients/{patient_id}`** - Patient demographics with computed fields
-  - Returns: Patient info with calculated age, BMI, primary contact
-  - Features: FHIR Patient resource integration, height/weight observations
+  - Returns: Patient info with calculated age, BMI, flattened address and demographics
+  - Features: FHIR Patient resource integration, height/weight observations, simplified structure
 - **`POST /api/v1/sepsis-alert/patients/match`** - Patient matching by demographics
   - Request Body: `PatientMatchRequest` with given name, family name, birth date, phone, and address
   - Returns: Ranked patient matches with similarity scores and match confidence
