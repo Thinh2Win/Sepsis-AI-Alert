@@ -193,6 +193,9 @@ class FHIRClient:
             raise FHIRException(500, f"Failed to retrieve patient data: {str(e)}")
 
     async def match_patient(self, match_request: PatientMatchRequest) -> PatientMatchResponse:
+        """
+        Match patient using FHIR Patient.$match operation with proper Parameters structure
+        """
         patient_resource = {
             "resourceType": "Patient",
             "name": [{"family": match_request.family, "given": [match_request.given]}],
@@ -200,16 +203,20 @@ class FHIRClient:
         }
         
         if match_request.phone:
-            patient_resource["telecom"] = [{"system": "phone", "value": match_request.phone}]
+            patient_resource["telecom"] = [{"system": "phone", "value": match_request.phone, "use": "home"}]
         
         if match_request.address:
-            patient_resource["address"] = [match_request.address.dict()]
+            address_dict = match_request.address.dict()
+            # Convert postalCode to match FHIR format
+            if "postal_code" in address_dict:
+                address_dict["postalCode"] = address_dict.pop("postal_code")
+            patient_resource["address"] = [address_dict]
 
         parameters = {
             "resourceType": "Parameters",
             "parameter": [
                 {"name": "resource", "resource": patient_resource},
-                {"name": "OnlyCertainMatches", "valueBoolean": True}
+                {"name": "onlyCertainMatches", "valueBoolean": True}
             ]
         }
 
