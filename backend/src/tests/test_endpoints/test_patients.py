@@ -6,7 +6,7 @@ import pytest
 from fastapi import status
 from unittest.mock import AsyncMock
 
-from app.models.patient import PatientResponse, PatientMatchRequest, PatientMatchResponse, PatientDemographics, HumanName, PatientMatchResult
+from app.models.patient import PatientResponse, PatientMatchRequest, PatientMatchResponse, PatientMatchResult
 from app.core.exceptions import FHIRException
 from tests.fixtures.fhir_responses import patient_response
 
@@ -21,14 +21,16 @@ class TestPatientEndpoints:
         expected_patient_data = PatientResponse(
             id=sample_patient_id,
             active=True,
-            name=[HumanName(family="Doe", given=["John"])],
-            telecom=[],
             gender="male",
             birth_date=date(1980, 1, 1),
-            address=[],
-            identifier=[],
-            marital_status=None,
-            demographics=PatientDemographics()
+            primary_address="123 Main St",
+            city="Anytown",
+            state="CA",
+            postal_code="12345",
+            height_cm=175.0,
+            weight_kg=70.0,
+            primary_name="John Doe",
+            primary_phone="+1-555-123-4567"
         )
         
         mock_fhir_client_dependency.get_patient.return_value = expected_patient_data
@@ -42,6 +44,18 @@ class TestPatientEndpoints:
         assert data["id"] == sample_patient_id
         assert data["active"] is True
         assert data["gender"] == "male"
+        assert data["birth_date"] == "1980-01-01"
+        assert data["primary_address"] == "123 Main St"
+        assert data["city"] == "Anytown"
+        assert data["state"] == "CA"
+        assert data["postal_code"] == "12345"
+        assert data["height_cm"] == 175.0
+        assert data["weight_kg"] == 70.0
+        assert data["primary_name"] == "John Doe"
+        assert data["primary_phone"] == "+1-555-123-4567"
+        assert data["age"] == 45  # Calculated from birth_date
+        assert data["bmi"] == 22.86  # Calculated from height/weight
+        assert data["bmi_category"] == "Normal weight"
         mock_fhir_client_dependency.get_patient.assert_called_once_with(sample_patient_id)
 
     def test_get_patient_not_found(self, test_client, mock_fhir_client_dependency):
@@ -122,9 +136,16 @@ class TestPatientMatchEndpoint:
                     resource=PatientResponse(
                         id="test-patient-123",
                         active=True,
-                        name=[HumanName(family="Doe", given=["John"])],
                         gender="male",
-                        birth_date=date(1980, 1, 1)
+                        birth_date=date(1980, 1, 1),
+                        primary_address="123 Main St",
+                        city="Anytown",
+                        state="CA",
+                        postal_code="12345",
+                        height_cm=175.0,
+                        weight_kg=70.0,
+                        primary_name="John Doe",
+                        primary_phone="+1-555-123-4567"
                     ),
                     search={"score": 1.0}
                 )
@@ -266,9 +287,16 @@ class TestPatientMatchEndpoint:
                     resource=PatientResponse(
                         id="test-patient-123",
                         active=True,
-                        name=[HumanName(family="Doe", given=["John"])],
                         gender="male",
-                        birth_date=date(1980, 1, 1)
+                        birth_date=date(1980, 1, 1),
+                        primary_address="123 Main St",
+                        city="Anytown",
+                        state="CA",
+                        postal_code="12345",
+                        height_cm=175.0,
+                        weight_kg=70.0,
+                        primary_name="John Doe",
+                        primary_phone="+1-555-123-4567"
                     )
                 )
             ]
@@ -328,15 +356,15 @@ class TestPatientMatchEndpoint:
             total=3,
             entry=[
                 PatientMatchResult(
-                    resource=PatientResponse(id="patient-1", name=[HumanName(family="Smith", given=["John"])]),
+                    resource=PatientResponse(id="patient-1", primary_name="John Smith"),
                     search={"score": 1.0}
                 ),
                 PatientMatchResult(
-                    resource=PatientResponse(id="patient-2", name=[HumanName(family="Smith", given=["John"])]),
+                    resource=PatientResponse(id="patient-2", primary_name="John Smith"),
                     search={"score": 0.9}
                 ),
                 PatientMatchResult(
-                    resource=PatientResponse(id="patient-3", name=[HumanName(family="Smith", given=["John"])]),
+                    resource=PatientResponse(id="patient-3", primary_name="John Smith"),
                     search={"score": 0.8}
                 )
             ]
