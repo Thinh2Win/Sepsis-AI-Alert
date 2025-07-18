@@ -51,10 +51,10 @@ class LOINCCodes:
     LIVER = {
         "bilirubin_total": "1975-2",
         "bilirubin_direct": "1968-7",
-        "albumin": "1751-7",
+        "albumin": "1742-6",
         "total_protein": "2885-2",
         "alkaline_phosphatase": "6768-6",
-        "alanine_aminotransferase": "1742-6",
+        "alanine_aminotransferase": "1744-4",
         "aspartate_aminotransferase": "1920-8",
         "lactate_dehydrogenase": "14804-9"
     }

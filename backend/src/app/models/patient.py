@@ -35,7 +35,6 @@ class PatientDemographics(BaseModel):
     weight_kg: Optional[float] = None
     bmi: Optional[float] = None
     bmi_category: Optional[str] = None
-    age: Optional[int] = None
     
     @computed_field
     @property
@@ -55,14 +54,15 @@ class PatientDemographics(BaseModel):
 class PatientResponse(BaseModel):
     id: str
     active: Optional[bool] = None
-    name: List[HumanName] = Field(default_factory=list)
-    telecom: List[Telecom] = Field(default_factory=list)
     gender: Optional[str] = None
     birth_date: Optional[date] = Field(None, alias="birthDate")
     address: List[Address] = Field(default_factory=list)
-    identifier: List[Identifier] = Field(default_factory=list)
     marital_status: Optional[Dict[str, Any]] = Field(None, alias="maritalStatus")
     demographics: Optional[PatientDemographics] = None
+    
+    # Direct fields for computed data
+    primary_name_data: Optional[str] = None
+    primary_phone_data: Optional[str] = None
     
     @computed_field
     @property
@@ -74,20 +74,12 @@ class PatientResponse(BaseModel):
     @computed_field
     @property
     def primary_name(self) -> Optional[str]:
-        if self.name:
-            primary = next((n for n in self.name if n.use == "official"), self.name[0])
-            given_names = " ".join(primary.given) if primary.given else ""
-            family_name = primary.family or ""
-            return f"{given_names} {family_name}".strip()
-        return None
+        return self.primary_name_data
     
     @computed_field
     @property
     def primary_phone(self) -> Optional[str]:
-        if self.telecom:
-            phone = next((t for t in self.telecom if t.system == "phone"), None)
-            return phone.value if phone else None
-        return None
+        return self.primary_phone_data
     
     @computed_field
     @property

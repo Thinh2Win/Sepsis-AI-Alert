@@ -160,30 +160,39 @@ class FHIRClient:
             # 2. Get height/weight/BMI observations
             demographics_params = {
                 "patient": patient_id,
+                "category": "vital-signs",  # Search within vital signs category
                 "code": "8302-2,29463-7,39156-5",  # height, weight, BMI
                 "_sort": "-date",
-                "_count": "3"  # Get latest of each type
+                "_count": "10"  # Get more entries to find latest of each type
             }
-            demographics_bundle = await self._make_request("GET", "Observation", params=demographics_params)
+            
+            # Handle potential empty demographics bundle
+            patient_demographics = PatientDemographics()
+            try:
+                demographics_bundle = await self._make_request("GET", "Observation", params=demographics_params)
+                if demographics_bundle and demographics_bundle.get("entry"):
+                    patient_demographics = self._process_demographics_observations(demographics_bundle)
+            except Exception as demo_error:
+                logger.warning(f"Error fetching demographics observations for patient {patient_id}: {str(demo_error)}")
             
             # 3. Process patient demographics
             demographics = extract_patient_demographics(patient_data)
             
-            # 4. Process demographic observations
-            patient_demographics = self._process_demographics_observations(demographics_bundle)
+            # 4. Extract primary name and phone from demographics
+            primary_name = self._extract_primary_name(demographics.get("names", []))
+            primary_phone = self._extract_primary_phone(demographics.get("telecoms", []))
             
             # 5. Create patient response
             patient_response = PatientResponse(
                 id=patient_data.get("id"),
                 active=patient_data.get("active"),
-                name=demographics.get("names", []),
-                telecom=demographics.get("telecoms", []),
                 gender=demographics.get("gender"),
                 birth_date=demographics.get("birth_date"),
                 address=demographics.get("addresses", []),
-                identifier=demographics.get("identifiers", []),
                 marital_status=patient_data.get("maritalStatus"),
-                demographics=patient_demographics
+                demographics=patient_demographics,
+                primary_name_data=primary_name,
+                primary_phone_data=primary_phone
             )
             
             return patient_response
@@ -616,33 +625,61 @@ class FHIRClient:
         """
         Process demographic observations (height, weight, BMI)
         """
-        observations = extract_observations_by_loinc(bundle, ["8302-2", "29463-7", "39156-5"])
-        
-        height_cm = None
-        weight_kg = None
-        bmi = None
-        
-        for obs in observations:
-            loinc_code = obs.get("loinc_code")
-            value = obs.get("value")
-            unit = obs.get("unit", "")
+        try:
+            observations = extract_observations_by_loinc(bundle, ["8302-2", "29463-7", "39156-5"])
             
-            if loinc_code == "8302-2" and value:  # Height
-                height_cm = convert_height_to_cm(value, unit)
-            elif loinc_code == "29463-7" and value:  # Weight
-                weight_kg = convert_weight_to_kg(value, unit)
-            elif loinc_code == "39156-5" and value:  # BMI
-                bmi = value
+            height_cm = None
+            weight_kg = None
+            bmi = None
+            
+            for obs in observations:
+                loinc_code = obs.get("loinc_code")
+                value = obs.get("value")
+                unit = obs.get("unit", "")
+                
+                if loinc_code == "8302-2" and value:  # Height
+                    height_cm = convert_height_to_cm(value, unit)
+                elif loinc_code == "29463-7" and value:  # Weight
+                    weight_kg = convert_weight_to_kg(value, unit)
+                elif loinc_code == "39156-5" and value:  # BMI
+                    bmi = value
+            
+            # Calculate BMI if not provided but height and weight are available
+            if not bmi and height_cm and weight_kg:
+                bmi = calculate_bmi(height_cm, weight_kg)
+            
+            return PatientDemographics(
+                height_cm=height_cm,
+                weight_kg=weight_kg,
+                bmi=bmi
+            )
         
-        # Calculate BMI if not provided but height and weight are available
-        if not bmi and height_cm and weight_kg:
-            bmi = calculate_bmi(height_cm, weight_kg)
+        except Exception as e:
+            logger.warning(f"Error processing demographics observations: {str(e)}")
+            return PatientDemographics()
+
+    def _extract_primary_name(self, names: List[Dict[str, Any]]) -> Optional[str]:
+        """Extract primary name from FHIR names array"""
+        if not names:
+            return None
         
-        return PatientDemographics(
-            height_cm=height_cm,
-            weight_kg=weight_kg,
-            bmi=bmi
-        )
+        # Find official name or use first name
+        primary = next((n for n in names if n.get("use") == "official"), names[0])
+        
+        given_names = " ".join(primary.get("given", [])) if primary.get("given") else ""
+        family_name = primary.get("family", "")
+        
+        full_name = f"{given_names} {family_name}".strip()
+        return full_name if full_name else None
+
+    def _extract_primary_phone(self, telecoms: List[Dict[str, Any]]) -> Optional[str]:
+        """Extract primary phone from FHIR telecoms array"""
+        if not telecoms:
+            return None
+        
+        # Find phone number (prefer home, then any phone)
+        phone = next((t for t in telecoms if t.get("system") == "phone"), None)
+        return phone.get("value") if phone else None
 
     def _process_vitals_results(self, vital_results: List[Dict[str, Any]]) -> VitalSignsTimeSeries:
         """
