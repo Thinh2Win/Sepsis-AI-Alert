@@ -155,44 +155,35 @@ Sepsis-AI-Alert/
 ├── backend/src/
 │   ├── main.py                  # Application entry point
 │   ├── app/                     # New modular FastAPI structure
-│   │   ├── __init__.py
 │   │   ├── main.py              # FastAPI application
 │   │   ├── core/                # Core functionality
-│   │   │   ├── __init__.py
 │   │   │   ├── config.py        # Pydantic settings management
 │   │   │   ├── dependencies.py  # Dependency injection
 │   │   │   ├── exceptions.py    # Custom exceptions
 │   │   │   ├── middleware.py    # Request logging middleware
 │   │   │   └── loinc_codes.py   # Comprehensive LOINC mappings
 │   │   ├── models/              # Pydantic data models
-│   │   │   ├── __init__.py
 │   │   │   ├── patient.py       # Simplified patient demographics with flattened fields
 │   │   │   ├── vitals.py        # Vital signs with sepsis scoring
 │   │   │   ├── labs.py          # Laboratory results by category
 │   │   │   └── clinical.py      # Clinical context models
 │   │   ├── routers/             # FastAPI route handlers
-│   │   │   ├── __init__.py
 │   │   │   ├── patients.py      # Patient demographics endpoints
 │   │   │   ├── vitals.py        # Vital signs endpoints
 │   │   │   ├── labs.py          # Laboratory results endpoints
 │   │   │   └── clinical.py      # Clinical context endpoints
 │   │   ├── services/            # Business logic services
-│   │   │   ├── __init__.py
 │   │   │   ├── auth_client.py   # Enhanced OAuth2 JWT authentication
 │   │   │   └── fhir_client.py   # Comprehensive FHIR R4 client
 │   │   └── utils/               # Utility functions
-│   │       ├── __init__.py
 │   │       ├── calculations.py  # Clinical calculations (age, BMI, etc.)
 │   │       ├── date_utils.py    # FHIR datetime utilities
 │   │       └── fhir_utils.py    # FHIR bundle processing
 │   └── tests/                   # Comprehensive test suite
-│       ├── __init__.py
 │       ├── conftest.py          # Pytest configuration
 │       ├── fixtures/            # Test data fixtures
-│       │   ├── __init__.py
 │       │   └── fhir_responses.py # Mock FHIR response data
 │       ├── test_endpoints/      # API endpoint tests
-│       │   ├── __init__.py
 │       │   ├── test_clinical.py # Clinical endpoints tests
 │       │   ├── test_labs.py     # Laboratory endpoints tests
 │       │   ├── test_patients.py # Patient endpoints tests
