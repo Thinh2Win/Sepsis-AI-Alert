@@ -89,24 +89,19 @@ class SepsisScoringService:
             
             # Calculate qSOFA score if requested
             if "QSOFA" in requested_systems:
-                try:
-                    qsofa_result = await calculate_total_qsofa(
+                qsofa_result = await calculate_total_qsofa(
+                    patient_id=patient_id,
+                    fhir_client=self.fhir_client,
+                    timestamp=timestamp
+                )
+                
+                # Collect detailed qSOFA parameters if requested
+                if include_parameters:
+                    detailed_qsofa_parameters = await collect_qsofa_parameters(
                         patient_id=patient_id,
                         fhir_client=self.fhir_client,
                         timestamp=timestamp
                     )
-                    
-                    # Collect detailed qSOFA parameters if requested
-                    if include_parameters:
-                        detailed_qsofa_parameters = await collect_qsofa_parameters(
-                            patient_id=patient_id,
-                            fhir_client=self.fhir_client,
-                            timestamp=timestamp
-                        )
-                except Exception as e:
-                    logger.error(f"Error calculating qSOFA score: {str(e)}")
-                    # Create a fallback qSOFA result with score 0
-                    qsofa_result = await self._create_fallback_qsofa_result(patient_id, timestamp or datetime.now())
             
             # Default to SOFA if no valid systems specified
             if not sofa_result and not qsofa_result:
@@ -193,66 +188,6 @@ class SepsisScoringService:
             
             return batch_response
     
-    async def _create_fallback_qsofa_result(
-        self,
-        patient_id: str,
-        timestamp: datetime
-    ) -> "QsofaScoreResult":
-        """Create a fallback qSOFA result when calculation fails"""
-        from app.models.qsofa import (
-            QsofaScoreResult, QsofaComponentScore, QsofaParameters, QsofaParameter
-        )
-        
-        logger.warning(f"Creating fallback qSOFA result for patient [REDACTED]")
-        
-        # Create default parameters with estimated values
-        fallback_params = QsofaParameters(
-            patient_id=patient_id,
-            timestamp=timestamp,
-            respiratory_rate=QsofaParameter(value=16.0, source="default", is_estimated=True),
-            systolic_bp=QsofaParameter(value=120.0, source="default", is_estimated=True),
-            gcs=QsofaParameter(value=15.0, source="default", is_estimated=True),
-            altered_mental_status=False
-        )
-        
-        # Create component scores (all normal, score = 0)
-        respiratory_score = QsofaComponentScore(
-            component="Respiratory",
-            score=0,
-            threshold_met=False,
-            interpretation="Respiratory rate: 16 breaths/min (estimated default)",
-            parameters_used=["respiratory_rate"]
-        )
-        
-        cardiovascular_score = QsofaComponentScore(
-            component="Cardiovascular",
-            score=0,
-            threshold_met=False,
-            interpretation="Systolic BP: 120 mmHg (estimated default)",
-            parameters_used=["systolic_bp"]
-        )
-        
-        cns_score = QsofaComponentScore(
-            component="Central Nervous System",
-            score=0,
-            threshold_met=False,
-            interpretation="Mental status: Normal (estimated default)",
-            parameters_used=["gcs", "mental_status_assessment"]
-        )
-        
-        # Create fallback result
-        return QsofaScoreResult(
-            patient_id=patient_id,
-            timestamp=timestamp,
-            respiratory_score=respiratory_score,
-            cardiovascular_score=cardiovascular_score,
-            cns_score=cns_score,
-            total_score=0,
-            high_risk=False,
-            estimated_parameters_count=3,  # All parameters estimated
-            missing_parameters=["respiratory_rate", "systolic_bp", "gcs"],
-            data_reliability_score=0.0  # Low reliability due to all estimates
-        )
     
     def _validate_and_create_request(
         self,
