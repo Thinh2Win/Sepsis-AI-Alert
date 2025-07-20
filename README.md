@@ -239,6 +239,16 @@ Sepsis-AI-Alert/
   - Returns: Intake/output analysis with oliguria detection
   - Features: Net balance calculation, hourly urine rate monitoring
 
+### SOFA Sepsis Scoring Endpoints
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`** - Individual sepsis risk assessment
+  - Query Parameters: `timestamp`, `include_parameters`, `scoring_systems`
+  - Returns: Complete SOFA score (0-24) with mortality risk, organ dysfunction assessment, and clinical alerts
+  - Features: Real-time sepsis scoring, risk stratification (MINIMAL/LOW/MODERATE/HIGH/CRITICAL), clinical recommendations
+- **`POST /api/v1/sepsis-alert/patients/batch-sepsis-scores`** - Batch sepsis scoring (max 50 patients)
+  - Request Body: `BatchSepsisScoreRequest` with patient IDs and scoring parameters
+  - Returns: Individual scores for all patients with error handling for failed calculations
+  - Features: Dashboard integration, population monitoring, high-risk patient identification
+
 ### System Endpoints
 - **`GET /health`** - Application health check
 - **`GET /api/docs`** - Interactive API documentation (Swagger UI)

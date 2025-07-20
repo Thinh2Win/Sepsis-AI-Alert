@@ -51,15 +51,20 @@ For manual activation (if needed):
 - **vitals.py**: Vital signs endpoints with time-series and latest data
 - **labs.py**: Laboratory results endpoints with critical value filtering
 - **clinical.py**: Clinical context endpoints (encounters, conditions, medications, fluid balance)
+- **sepsis_scoring.py**: SOFA sepsis scoring endpoints with risk assessment and batch processing
 
 ##### Services (`app/services/`)
 - **auth_client.py**: Enhanced OAuth2 JWT authentication with proper error handling
 - **fhir_client.py**: Comprehensive FHIR R4 client with retry logic, pagination, and data processing
+- **sepsis_scoring_service.py**: Business logic for SOFA scoring calculations and risk assessment
+- **sepsis_response_builder.py**: Centralized response building for sepsis assessments
 
 ##### Utils (`app/utils/`)
 - **calculations.py**: Clinical calculation utilities (age, BMI, blood pressure, fever detection)
 - **date_utils.py**: FHIR datetime parsing, validation, and time-based calculations
 - **fhir_utils.py**: FHIR bundle processing, observation extraction, and data transformation
+- **sofa_scoring.py**: SOFA score calculation algorithms and clinical assessment logic
+- **error_handling.py**: Standardized error handling decorators and validation utilities
 
 ### Key Dependencies
 
@@ -213,13 +218,23 @@ Urine output
 - [x] **Vital Signs**: `/api/v1/sepsis-alert/patients/{patient_id}/vitals`
 - [x] **Laboratory Results**: `/api/v1/sepsis-alert/patients/{patient_id}/labs`
 - [x] **Clinical Context**: `/api/v1/sepsis-alert/patients/{patient_id}/encounter`
+- [x] **SOFA Sepsis Scoring**: `/api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`
+- [x] **Batch Sepsis Scoring**: `/api/v1/sepsis-alert/patients/batch-sepsis-scores`
+
+#### SOFA Scoring Implementation
+- [x] **SOFA Score Calculation**: Complete 6-organ system assessment (respiratory, coagulation, liver, cardiovascular, CNS, renal)
+- [x] **Risk Stratification**: Mortality risk assessment with clinical recommendations
+- [x] **Data Quality Tracking**: Missing parameter detection and reliability scoring
+- [x] **Clinical Alerts**: Severity-based alerting with organ dysfunction detection
+- [x] **Batch Processing**: Multi-patient scoring with error handling
+- [x] **Configuration Management**: Centralized constants and thresholds
 
 ### 🔄 In Progress
 
-#### FHIR Client Implementation
-- [ ] **Data Processing Methods**: Complete implementation of FHIR bundle processing
-- [ ] **Observation Extraction**: Implement LOINC-based observation extraction
-- [ ] **Clinical Scoring**: Implement sepsis scoring algorithms
+#### Enhanced Features
+- [ ] **Trend Analysis**: Historical SOFA score tracking and deterioration detection
+- [ ] **qSOFA Integration**: Quick SOFA implementation for non-ICU screening
+- [ ] **NEWS2 Integration**: National Early Warning Score implementation
 
 ### 📋 Next Steps
 
