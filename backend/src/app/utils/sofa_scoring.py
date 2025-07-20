@@ -9,21 +9,13 @@ from app.models.sofa import (
 )
 from app.services.fhir_client import FHIRClient
 from app.core.loinc_codes import LOINCCodes
+from app.core.sofa_constants import (
+    SofaDefaults, SofaThresholds, SofaParameterConfigs, SOFA_DEFAULTS
+)
 from app.utils.fhir_utils import extract_observations_by_loinc, get_most_recent_observation
 from app.utils.calculations import calculate_mean_arterial_pressure
 
 logger = logging.getLogger(__name__)
-
-# SOFA default values for missing parameters
-SOFA_DEFAULTS = {
-    "pao2_fio2_ratio": 400.0,  # Normal ratio
-    "platelets": 150.0,        # Normal platelet count (10^3/μL)
-    "bilirubin": 1.0,          # Normal bilirubin (mg/dL)
-    "map": 70.0,               # Normal MAP (mmHg)
-    "gcs": 15.0,               # Normal GCS
-    "creatinine": 1.0,         # Normal creatinine (mg/dL)
-    "urine_output": 1000.0     # Normal urine output (mL/24h)
-}
 
 async def collect_sofa_parameters(
     patient_id: str, 
@@ -185,21 +177,22 @@ def calculate_respiratory_score(pao2: Optional[float], fio2: Optional[float], on
     if pao2 and fio2 and fio2 > 0:
         ratio = pao2 / fio2
     elif pao2 and fio2 is None:
-        # Assume room air (FiO2 = 0.21) if not specified
-        ratio = pao2 / 0.21
+        # Assume room air if not specified
+        ratio = pao2 / SofaDefaults.ROOM_AIR_FIO2
     else:
-        ratio = SOFA_DEFAULTS["pao2_fio2_ratio"]
+        ratio = SofaDefaults.PAO2_FIO2_RATIO
     
-    # Apply SOFA scoring criteria
-    if ratio >= 400:
+    # Apply SOFA scoring criteria using thresholds
+    thresholds = SofaThresholds.RESPIRATORY
+    if ratio >= thresholds["normal"]:
         score = 0
-    elif ratio >= 300:
+    elif ratio >= thresholds["mild"]:
         score = 1
-    elif ratio >= 200:
+    elif ratio >= thresholds["moderate"]:
         score = 2
-    elif ratio >= 100 and on_ventilation:
+    elif ratio >= thresholds["severe"] and on_ventilation:
         score = 3
-    elif ratio < 100 and on_ventilation:
+    elif ratio < thresholds["severe"] and on_ventilation:
         score = 4
     else:
         score = 0  # Default if not on ventilation and low ratio
@@ -219,16 +212,17 @@ def calculate_coagulation_score(platelets: Optional[float]) -> SofaComponentScor
     """Calculate SOFA coagulation score based on platelet count"""
     
     if platelets is None:
-        platelets = SOFA_DEFAULTS["platelets"]
+        platelets = SofaDefaults.PLATELETS
     
-    # Apply SOFA scoring criteria (platelets in 10^3/μL)
-    if platelets >= 150:
+    # Apply SOFA scoring criteria using thresholds
+    thresholds = SofaThresholds.COAGULATION
+    if platelets >= thresholds["normal"]:
         score = 0
-    elif platelets >= 100:
+    elif platelets >= thresholds["mild"]:
         score = 1
-    elif platelets >= 50:
+    elif platelets >= thresholds["moderate"]:
         score = 2
-    elif platelets >= 20:
+    elif platelets >= thresholds["severe"]:
         score = 3
     else:
         score = 4
@@ -244,16 +238,17 @@ def calculate_liver_score(bilirubin: Optional[float]) -> SofaComponentScore:
     """Calculate SOFA liver score based on bilirubin level"""
     
     if bilirubin is None:
-        bilirubin = SOFA_DEFAULTS["bilirubin"]
+        bilirubin = SofaDefaults.BILIRUBIN
     
-    # Apply SOFA scoring criteria (bilirubin in mg/dL)
-    if bilirubin < 1.2:
+    # Apply SOFA scoring criteria using thresholds
+    thresholds = SofaThresholds.LIVER
+    if bilirubin < thresholds["normal"]:
         score = 0
-    elif bilirubin < 2.0:
+    elif bilirubin < thresholds["mild"]:
         score = 1
-    elif bilirubin < 6.0:
+    elif bilirubin < thresholds["moderate"]:
         score = 2
-    elif bilirubin < 12.0:
+    elif bilirubin < thresholds["severe"]:
         score = 3
     else:
         score = 4
@@ -269,30 +264,31 @@ def calculate_cardiovascular_score(map_value: Optional[float], vasopressor_doses
     """Calculate SOFA cardiovascular score based on MAP and vasopressor use"""
     
     if map_value is None:
-        map_value = SOFA_DEFAULTS["map"]
+        map_value = SofaDefaults.MAP
     
-    # Check vasopressor administration first (doses in mcg/kg/min)
+    # Check vasopressor administration first using thresholds
     vasopressor_info = []
+    thresholds = SofaThresholds.VASOPRESSOR
     
     # High-dose vasopressors (score 4)
-    if (vasopressor_doses.dopamine and vasopressor_doses.dopamine > 15) or \
-       (vasopressor_doses.epinephrine and vasopressor_doses.epinephrine > 0.1) or \
-       (vasopressor_doses.norepinephrine and vasopressor_doses.norepinephrine > 0.1):
+    if (vasopressor_doses.dopamine and vasopressor_doses.dopamine > thresholds["high_dopamine"]) or \
+       (vasopressor_doses.epinephrine and vasopressor_doses.epinephrine > thresholds["epi_norepi"]) or \
+       (vasopressor_doses.norepinephrine and vasopressor_doses.norepinephrine > thresholds["epi_norepi"]):
         score = 4
         vasopressor_info.append("High-dose vasopressors")
     
     # Medium-dose dopamine (score 3)
-    elif vasopressor_doses.dopamine and vasopressor_doses.dopamine > 5:
+    elif vasopressor_doses.dopamine and vasopressor_doses.dopamine > thresholds["low_dopamine"]:
         score = 3
         vasopressor_info.append(f"Dopamine {vasopressor_doses.dopamine:.1f} mcg/kg/min")
     
     # Low-dose dopamine (score 2)
-    elif vasopressor_doses.dopamine and vasopressor_doses.dopamine <= 5:
+    elif vasopressor_doses.dopamine and vasopressor_doses.dopamine <= thresholds["low_dopamine"]:
         score = 2
         vasopressor_info.append(f"Dopamine {vasopressor_doses.dopamine:.1f} mcg/kg/min")
     
     # No vasopressors - check MAP
-    elif map_value < 70:
+    elif map_value < SofaThresholds.CARDIOVASCULAR["normal_map"]:
         score = 1
     else:
         score = 0
@@ -312,16 +308,17 @@ def calculate_cns_score(gcs: Optional[float]) -> SofaComponentScore:
     """Calculate SOFA central nervous system score based on Glasgow Coma Scale"""
     
     if gcs is None:
-        gcs = SOFA_DEFAULTS["gcs"]
+        gcs = SofaDefaults.GCS
     
-    # Apply SOFA scoring criteria
-    if gcs >= 15:
+    # Apply SOFA scoring criteria using thresholds
+    thresholds = SofaThresholds.CNS
+    if gcs >= thresholds["normal"]:
         score = 0
-    elif gcs >= 13:
+    elif gcs >= thresholds["mild"]:
         score = 1
-    elif gcs >= 10:
+    elif gcs >= thresholds["moderate"]:
         score = 2
-    elif gcs >= 6:
+    elif gcs >= thresholds["severe"]:
         score = 3
     else:
         score = 4
@@ -337,26 +334,28 @@ def calculate_renal_score(creatinine: Optional[float], urine_output_24h: Optiona
     """Calculate SOFA renal score based on creatinine and urine output"""
     
     if creatinine is None:
-        creatinine = SOFA_DEFAULTS["creatinine"]
+        creatinine = SofaDefaults.CREATININE
     if urine_output_24h is None:
-        urine_output_24h = SOFA_DEFAULTS["urine_output"]
+        urine_output_24h = SofaDefaults.URINE_OUTPUT
     
-    # Check creatinine levels (mg/dL)
-    if creatinine < 1.2:
+    # Check creatinine levels using thresholds
+    creat_thresholds = SofaThresholds.RENAL["creatinine"]
+    if creatinine < creat_thresholds["normal"]:
         creatinine_score = 0
-    elif creatinine < 2.0:
+    elif creatinine < creat_thresholds["mild"]:
         creatinine_score = 1
-    elif creatinine < 3.5:
+    elif creatinine < creat_thresholds["moderate"]:
         creatinine_score = 2
-    elif creatinine < 5.0:
+    elif creatinine < creat_thresholds["severe"]:
         creatinine_score = 3
     else:
         creatinine_score = 4
     
-    # Check urine output (mL/day)
-    if urine_output_24h < 200:
+    # Check urine output using thresholds
+    urine_thresholds = SofaThresholds.RENAL["urine_output"]
+    if urine_output_24h < urine_thresholds["oliguria"]:
         urine_score = 4
-    elif urine_output_24h < 500:
+    elif urine_output_24h < urine_thresholds["normal"]:
         urine_score = 3
     else:
         urine_score = 0
@@ -365,7 +364,7 @@ def calculate_renal_score(creatinine: Optional[float], urine_output_24h: Optiona
     score = max(creatinine_score, urine_score)
     
     interpretation_parts = [f"Creatinine: {creatinine:.1f} mg/dL"]
-    if urine_output_24h < 500:
+    if urine_output_24h < urine_thresholds["normal"]:
         interpretation_parts.append(f"Urine output: {urine_output_24h:.0f} mL/24h")
     
     return SofaComponentScore(
@@ -450,6 +449,77 @@ async def calculate_total_sofa(
 
 # Helper functions for data collection
 
+async def _collect_fhir_parameters(
+    fhir_client: FHIRClient,
+    patient_id: str,
+    start_date: datetime,
+    end_date: datetime,
+    parameter_config: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Generic FHIR parameter collector that eliminates code duplication
+    
+    Args:
+        fhir_client: FHIR client instance
+        patient_id: Patient FHIR ID
+        start_date: Start date for data collection
+        end_date: End date for data collection
+        parameter_config: Configuration dict with:
+            - codes: List of LOINC codes to search for
+            - count: Number of results to return (default: 1)
+            - parameter_mapping: Dict mapping LOINC codes to parameter names
+            - extra_data: Dict of additional static data to return
+    
+    Returns:
+        Dict with collected parameters as SofaParameter objects
+    """
+    codes = parameter_config.get("codes", [])
+    count = parameter_config.get("count", 1)
+    parameter_mapping = parameter_config.get("parameter_mapping", {})
+    extra_data = parameter_config.get("extra_data", {})
+    system_name = parameter_config.get("system_name", "unknown")
+    
+    try:
+        bundle = await fhir_client._make_request(
+            "GET", "Observation",
+            params={
+                "patient": patient_id,
+                "code": ",".join(codes),
+                "date": f"ge{start_date.isoformat()}&date=le{end_date.isoformat()}",
+                "_sort": "-date",
+                "_count": str(count)
+            }
+        )
+        
+        observations = extract_observations_by_loinc(bundle, codes)
+        result = {}
+        
+        # Initialize all expected parameters
+        for loinc_code, param_name in parameter_mapping.items():
+            result[param_name] = SofaParameter()
+        
+        # Process observations
+        for obs in observations:
+            loinc_code = obs.get("loinc_code")
+            param_name = parameter_mapping.get(loinc_code)
+            
+            if param_name and param_name in result:
+                param = result[param_name]
+                if param.value is None:  # Use most recent value only
+                    param.value = obs.get("value")
+                    param.unit = obs.get("unit")
+                    param.timestamp = obs.get("timestamp")
+                    param.source = "measured"
+        
+        # Add any extra static data
+        result.update(extra_data)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error collecting {system_name} parameters: {str(e)}")
+        return {param_name: SofaParameter() for param_name in parameter_mapping.values()}
+
 async def _collect_respiratory_parameters(
     fhir_client: FHIRClient, 
     patient_id: str, 
@@ -457,46 +527,14 @@ async def _collect_respiratory_parameters(
     end_date: datetime
 ) -> Dict[str, Any]:
     """Collect respiratory system parameters"""
+    config = SofaParameterConfigs.RESPIRATORY.copy()
+    config["extra_data"] = {
+        "mechanical_ventilation": False,  # TODO: Add detection from procedures
+        "pao2": SofaParameter(),
+        "fio2": SofaParameter()
+    }
     
-    # Get PaO2/FiO2 ratio directly
-    ratio_codes = ["50984-4"]  # PaO2/FiO2 ratio
-    
-    try:
-        ratio_bundle = await fhir_client._make_request(
-            "GET", "Observation",
-            params={
-                "patient": patient_id,
-                "code": ",".join(ratio_codes),
-                "date": f"ge{start_date.isoformat()}&date=le{end_date.isoformat()}",
-                "_sort": "-date",
-                "_count": "1"
-            }
-        )
-        
-        ratio_obs = extract_observations_by_loinc(ratio_bundle, ratio_codes)
-        pao2_fio2_ratio = SofaParameter()
-        
-        if ratio_obs:
-            recent_ratio = get_most_recent_observation(ratio_obs)
-            if recent_ratio:
-                pao2_fio2_ratio.value = recent_ratio.get("value")
-                pao2_fio2_ratio.unit = recent_ratio.get("unit")
-                pao2_fio2_ratio.timestamp = recent_ratio.get("timestamp")
-                pao2_fio2_ratio.source = "measured"
-        
-        # TODO: Add mechanical ventilation detection from procedures
-        mechanical_ventilation = False
-        
-        return {
-            "pao2_fio2_ratio": pao2_fio2_ratio,
-            "mechanical_ventilation": mechanical_ventilation,
-            "pao2": SofaParameter(),  # Individual PaO2 if needed
-            "fio2": SofaParameter()   # Individual FiO2 if needed
-        }
-        
-    except Exception as e:
-        logger.error(f"Error collecting respiratory parameters: {str(e)}")
-        return {}
+    return await _collect_fhir_parameters(fhir_client, patient_id, start_date, end_date, config)
 
 async def _collect_coagulation_parameters(
     fhir_client: FHIRClient, 
@@ -505,37 +543,9 @@ async def _collect_coagulation_parameters(
     end_date: datetime
 ) -> Dict[str, Any]:
     """Collect coagulation system parameters"""
-    
-    platelet_codes = [LOINCCodes.CBC["platelet_count"]]  # 777-3
-    
-    try:
-        platelet_bundle = await fhir_client._make_request(
-            "GET", "Observation",
-            params={
-                "patient": patient_id,
-                "code": ",".join(platelet_codes),
-                "date": f"ge{start_date.isoformat()}&date=le{end_date.isoformat()}",
-                "_sort": "-date",
-                "_count": "1"
-            }
-        )
-        
-        platelet_obs = extract_observations_by_loinc(platelet_bundle, platelet_codes)
-        platelets = SofaParameter()
-        
-        if platelet_obs:
-            recent_platelet = get_most_recent_observation(platelet_obs)
-            if recent_platelet:
-                platelets.value = recent_platelet.get("value")
-                platelets.unit = recent_platelet.get("unit")
-                platelets.timestamp = recent_platelet.get("timestamp")
-                platelets.source = "measured"
-        
-        return {"platelets": platelets}
-        
-    except Exception as e:
-        logger.error(f"Error collecting coagulation parameters: {str(e)}")
-        return {}
+    return await _collect_fhir_parameters(
+        fhir_client, patient_id, start_date, end_date, SofaParameterConfigs.COAGULATION
+    )
 
 async def _collect_liver_parameters(
     fhir_client: FHIRClient, 
@@ -544,37 +554,9 @@ async def _collect_liver_parameters(
     end_date: datetime
 ) -> Dict[str, Any]:
     """Collect liver system parameters"""
-    
-    bilirubin_codes = [LOINCCodes.LIVER["bilirubin_total"]]  # 1975-2
-    
-    try:
-        bilirubin_bundle = await fhir_client._make_request(
-            "GET", "Observation",
-            params={
-                "patient": patient_id,
-                "code": ",".join(bilirubin_codes),
-                "date": f"ge{start_date.isoformat()}&date=le{end_date.isoformat()}",
-                "_sort": "-date",
-                "_count": "1"
-            }
-        )
-        
-        bilirubin_obs = extract_observations_by_loinc(bilirubin_bundle, bilirubin_codes)
-        bilirubin = SofaParameter()
-        
-        if bilirubin_obs:
-            recent_bilirubin = get_most_recent_observation(bilirubin_obs)
-            if recent_bilirubin:
-                bilirubin.value = recent_bilirubin.get("value")
-                bilirubin.unit = recent_bilirubin.get("unit")
-                bilirubin.timestamp = recent_bilirubin.get("timestamp")
-                bilirubin.source = "measured"
-        
-        return {"bilirubin": bilirubin}
-        
-    except Exception as e:
-        logger.error(f"Error collecting liver parameters: {str(e)}")
-        return {}
+    return await _collect_fhir_parameters(
+        fhir_client, patient_id, start_date, end_date, SofaParameterConfigs.LIVER
+    )
 
 async def _collect_cardiovascular_parameters(
     fhir_client: FHIRClient, 
@@ -583,58 +565,29 @@ async def _collect_cardiovascular_parameters(
     end_date: datetime
 ) -> Dict[str, Any]:
     """Collect cardiovascular system parameters"""
+    config = SofaParameterConfigs.CARDIOVASCULAR.copy()
+    config["extra_data"] = {"map_value": SofaParameter()}
     
-    bp_codes = [LOINCCodes.VITAL_SIGNS["systolic_bp"], LOINCCodes.VITAL_SIGNS["diastolic_bp"]]
+    result = await _collect_fhir_parameters(fhir_client, patient_id, start_date, end_date, config)
     
-    try:
-        bp_bundle = await fhir_client._make_request(
-            "GET", "Observation",
-            params={
-                "patient": patient_id,
-                "code": ",".join(bp_codes),
-                "date": f"ge{start_date.isoformat()}&date=le{end_date.isoformat()}",
-                "_sort": "-date",
-                "_count": "2"
-            }
-        )
-        
-        bp_obs = extract_observations_by_loinc(bp_bundle, bp_codes)
-        
-        systolic_bp = SofaParameter()
-        diastolic_bp = SofaParameter()
-        map_value = SofaParameter()
-        
-        # Process blood pressure observations
-        for obs in bp_obs:
-            if obs.get("loinc_code") == LOINCCodes.VITAL_SIGNS["systolic_bp"]:
-                systolic_bp.value = obs.get("value")
-                systolic_bp.unit = obs.get("unit")
-                systolic_bp.timestamp = obs.get("timestamp")
-                systolic_bp.source = "measured"
-            elif obs.get("loinc_code") == LOINCCodes.VITAL_SIGNS["diastolic_bp"]:
-                diastolic_bp.value = obs.get("value")
-                diastolic_bp.unit = obs.get("unit")
-                diastolic_bp.timestamp = obs.get("timestamp")
-                diastolic_bp.source = "measured"
-        
-        # Calculate MAP if both values available
-        if systolic_bp.value and diastolic_bp.value:
-            calculated_map = calculate_mean_arterial_pressure(systolic_bp.value, diastolic_bp.value)
-            if calculated_map:
-                map_value.value = calculated_map
-                map_value.unit = "mmHg"
-                map_value.timestamp = max(systolic_bp.timestamp or datetime.min, diastolic_bp.timestamp or datetime.min)
-                map_value.source = "calculated"
-        
-        return {
-            "systolic_bp": systolic_bp,
-            "diastolic_bp": diastolic_bp,
-            "map_value": map_value
-        }
-        
-    except Exception as e:
-        logger.error(f"Error collecting cardiovascular parameters: {str(e)}")
-        return {}
+    # Calculate MAP if both BP values available
+    systolic_bp = result.get("systolic_bp")
+    diastolic_bp = result.get("diastolic_bp")
+    
+    if (systolic_bp and systolic_bp.value and 
+        diastolic_bp and diastolic_bp.value):
+        calculated_map = calculate_mean_arterial_pressure(systolic_bp.value, diastolic_bp.value)
+        if calculated_map:
+            map_value = result["map_value"]
+            map_value.value = calculated_map
+            map_value.unit = "mmHg"
+            map_value.timestamp = max(
+                systolic_bp.timestamp or datetime.min, 
+                diastolic_bp.timestamp or datetime.min
+            )
+            map_value.source = "calculated"
+    
+    return result
 
 async def _collect_cns_parameters(
     fhir_client: FHIRClient, 
@@ -643,37 +596,9 @@ async def _collect_cns_parameters(
     end_date: datetime
 ) -> Dict[str, Any]:
     """Collect central nervous system parameters"""
-    
-    gcs_codes = [LOINCCodes.VITAL_SIGNS["glasgow_coma_score"]]  # 9269-2
-    
-    try:
-        gcs_bundle = await fhir_client._make_request(
-            "GET", "Observation",
-            params={
-                "patient": patient_id,
-                "code": ",".join(gcs_codes),
-                "date": f"ge{start_date.isoformat()}&date=le{end_date.isoformat()}",
-                "_sort": "-date",
-                "_count": "1"
-            }
-        )
-        
-        gcs_obs = extract_observations_by_loinc(gcs_bundle, gcs_codes)
-        gcs = SofaParameter()
-        
-        if gcs_obs:
-            recent_gcs = get_most_recent_observation(gcs_obs)
-            if recent_gcs:
-                gcs.value = recent_gcs.get("value")
-                gcs.unit = recent_gcs.get("unit")
-                gcs.timestamp = recent_gcs.get("timestamp")
-                gcs.source = "measured"
-        
-        return {"gcs": gcs}
-        
-    except Exception as e:
-        logger.error(f"Error collecting CNS parameters: {str(e)}")
-        return {}
+    return await _collect_fhir_parameters(
+        fhir_client, patient_id, start_date, end_date, SofaParameterConfigs.CNS
+    )
 
 async def _collect_renal_parameters(
     fhir_client: FHIRClient, 
@@ -682,49 +607,9 @@ async def _collect_renal_parameters(
     end_date: datetime
 ) -> Dict[str, Any]:
     """Collect renal system parameters"""
-    
-    renal_codes = [
-        LOINCCodes.METABOLIC["creatinine"],  # 2160-0
-        LOINCCodes.FLUID_BALANCE["urine_output_24hr"]  # 9188-4
-    ]
-    
-    try:
-        renal_bundle = await fhir_client._make_request(
-            "GET", "Observation",
-            params={
-                "patient": patient_id,
-                "code": ",".join(renal_codes),
-                "date": f"ge{start_date.isoformat()}&date=le{end_date.isoformat()}",
-                "_sort": "-date",
-                "_count": "2"
-            }
-        )
-        
-        renal_obs = extract_observations_by_loinc(renal_bundle, renal_codes)
-        
-        creatinine = SofaParameter()
-        urine_output_24h = SofaParameter()
-        
-        for obs in renal_obs:
-            if obs.get("loinc_code") == LOINCCodes.METABOLIC["creatinine"]:
-                creatinine.value = obs.get("value")
-                creatinine.unit = obs.get("unit")
-                creatinine.timestamp = obs.get("timestamp")
-                creatinine.source = "measured"
-            elif obs.get("loinc_code") == LOINCCodes.FLUID_BALANCE["urine_output_24hr"]:
-                urine_output_24h.value = obs.get("value")
-                urine_output_24h.unit = obs.get("unit")
-                urine_output_24h.timestamp = obs.get("timestamp")
-                urine_output_24h.source = "measured"
-        
-        return {
-            "creatinine": creatinine,
-            "urine_output_24h": urine_output_24h
-        }
-        
-    except Exception as e:
-        logger.error(f"Error collecting renal parameters: {str(e)}")
-        return {}
+    return await _collect_fhir_parameters(
+        fhir_client, patient_id, start_date, end_date, SofaParameterConfigs.RENAL
+    )
 
 async def _collect_vasopressor_data(
     fhir_client: FHIRClient, 
@@ -733,7 +618,6 @@ async def _collect_vasopressor_data(
     end_date: datetime
 ) -> Dict[str, Any]:
     """Collect vasopressor medication data"""
-    
     try:
         # Query for active vasopressor medications
         med_bundle = await fhir_client._make_request(
@@ -745,13 +629,9 @@ async def _collect_vasopressor_data(
             }
         )
         
-        vasopressor_doses = VasopressorDoses()
-        
         # TODO: Extract actual dosing information from medication administrations
         # This would require parsing dosage instructions and administration records
-        # For now, return empty vasopressor data
-        
-        return {"vasopressor_doses": vasopressor_doses}
+        return {"vasopressor_doses": VasopressorDoses()}
         
     except Exception as e:
         logger.error(f"Error collecting vasopressor data: {str(e)}")
