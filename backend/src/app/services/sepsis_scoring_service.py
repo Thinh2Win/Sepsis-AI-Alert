@@ -49,17 +49,10 @@ class SepsisScoringService:
         logger.info(f"Calculating sepsis score for patient [REDACTED]")
         
         with ProcessingTimer() as timer:
-            # Validate inputs
-            validate_patient_id(patient_id)
-            
-            # Parse and validate scoring systems request
-            request_params = SepsisScoreRequest(
-                timestamp=timestamp,
-                include_parameters=include_parameters,
-                scoring_systems=scoring_systems
+            # Validate inputs and create request parameters
+            request_params = self._validate_and_create_request(
+                patient_id, timestamp, include_parameters, scoring_systems
             )
-            
-            validate_scoring_systems(request_params.requested_systems)
             
             # Calculate SOFA score
             sofa_result = await calculate_total_sofa(
@@ -144,7 +137,24 @@ class SepsisScoringService:
             
             return batch_response
     
-    
+    def _validate_and_create_request(
+        self,
+        patient_id: str,
+        timestamp: Optional[datetime],
+        include_parameters: bool,
+        scoring_systems: str
+    ) -> SepsisScoreRequest:
+        """Validate inputs and create SepsisScoreRequest object"""
+        validate_patient_id(patient_id)
+        
+        request_params = SepsisScoreRequest(
+            timestamp=timestamp,
+            include_parameters=include_parameters,
+            scoring_systems=scoring_systems
+        )
+        
+        validate_scoring_systems(request_params.requested_systems)
+        return request_params
 
 
 class SepsisScoringServiceFactory:

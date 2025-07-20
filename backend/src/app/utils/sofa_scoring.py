@@ -46,44 +46,49 @@ async def collect_sofa_parameters(
     sofa_params = SofaParameters(patient_id=patient_id, timestamp=timestamp)
     
     try:
-        # Collect all required observations concurrently
+        # Collect all required observations concurrently using unified function
+        organ_systems = ["respiratory", "coagulation", "liver", "cardiovascular", "cns", "renal"]
         tasks = [
-            _collect_respiratory_parameters(fhir_client, patient_id, start_date, end_date),
-            _collect_coagulation_parameters(fhir_client, patient_id, start_date, end_date),
-            _collect_liver_parameters(fhir_client, patient_id, start_date, end_date),
-            _collect_cardiovascular_parameters(fhir_client, patient_id, start_date, end_date),
-            _collect_cns_parameters(fhir_client, patient_id, start_date, end_date),
-            _collect_renal_parameters(fhir_client, patient_id, start_date, end_date),
-            _collect_vasopressor_data(fhir_client, patient_id, start_date, end_date)
+            _collect_organ_parameters(fhir_client, patient_id, start_date, end_date, organ_system)
+            for organ_system in organ_systems
         ]
+        tasks.append(_collect_vasopressor_data(fhir_client, patient_id, start_date, end_date))
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Process results
+        # Process results with organ system mapping
+        organ_systems = ["respiratory", "coagulation", "liver", "cardiovascular", "cns", "renal"]
+        
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                logger.error(f"Error collecting SOFA parameter group {i}: {str(result)}")
+                system_name = organ_systems[i] if i < len(organ_systems) else "vasopressors"
+                logger.error(f"Error collecting SOFA parameters for {system_name}: {str(result)}")
                 continue
             
-            if i == 0:  # Respiratory
-                sofa_params.pao2 = result.get("pao2", SofaParameter())
-                sofa_params.fio2 = result.get("fio2", SofaParameter())
-                sofa_params.pao2_fio2_ratio = result.get("pao2_fio2_ratio", SofaParameter())
-                sofa_params.mechanical_ventilation = result.get("mechanical_ventilation", False)
-            elif i == 1:  # Coagulation
-                sofa_params.platelets = result.get("platelets", SofaParameter())
-            elif i == 2:  # Liver
-                sofa_params.bilirubin = result.get("bilirubin", SofaParameter())
-            elif i == 3:  # Cardiovascular
-                sofa_params.map_value = result.get("map_value", SofaParameter())
-                sofa_params.systolic_bp = result.get("systolic_bp", SofaParameter())
-                sofa_params.diastolic_bp = result.get("diastolic_bp", SofaParameter())
-            elif i == 4:  # CNS
-                sofa_params.gcs = result.get("gcs", SofaParameter())
-            elif i == 5:  # Renal
-                sofa_params.creatinine = result.get("creatinine", SofaParameter())
-                sofa_params.urine_output_24h = result.get("urine_output_24h", SofaParameter())
-            elif i == 6:  # Vasopressors
+            if i < len(organ_systems):
+                organ_system = organ_systems[i]
+                if organ_system == "respiratory":
+                    sofa_params.pao2 = result.get("pao2", SofaParameter())
+                    sofa_params.fio2 = result.get("fio2", SofaParameter())
+                    sofa_params.pao2_fio2_ratio = result.get("pao2_fio2_ratio", SofaParameter())
+                    sofa_params.mechanical_ventilation = result.get("mechanical_ventilation", False)
+                elif organ_system == "coagulation":
+                    sofa_params.platelets = result.get("platelets", SofaParameter())
+                elif organ_system == "liver":
+                    sofa_params.bilirubin = result.get("bilirubin", SofaParameter())
+                elif organ_system == "cardiovascular":
+                    sofa_params.map_value = result.get("map_value", SofaParameter())
+                    sofa_params.systolic_bp = result.get("systolic_bp", SofaParameter())
+                    sofa_params.diastolic_bp = result.get("diastolic_bp", SofaParameter())
+                    # Calculate MAP if needed
+                    _calculate_map_from_bp(result)
+                    sofa_params.map_value = result.get("map_value", SofaParameter())
+                elif organ_system == "cns":
+                    sofa_params.gcs = result.get("gcs", SofaParameter())
+                elif organ_system == "renal":
+                    sofa_params.creatinine = result.get("creatinine", SofaParameter())
+                    sofa_params.urine_output_24h = result.get("urine_output_24h", SofaParameter())
+            else:  # Vasopressors (index 6)
                 sofa_params.vasopressor_doses = result.get("vasopressor_doses", VasopressorDoses())
         
         # Handle missing data
@@ -448,6 +453,7 @@ async def calculate_total_sofa(
     return result
 
 # Helper functions for data collection
+# Note: Individual organ collection functions replaced with unified _collect_organ_parameters()
 
 async def _collect_fhir_parameters(
     fhir_client: FHIRClient,
@@ -520,57 +526,42 @@ async def _collect_fhir_parameters(
         logger.error(f"Error collecting {system_name} parameters: {str(e)}")
         return {param_name: SofaParameter() for param_name in parameter_mapping.values()}
 
-async def _collect_respiratory_parameters(
+async def _collect_organ_parameters(
     fhir_client: FHIRClient, 
     patient_id: str, 
     start_date: datetime, 
-    end_date: datetime
+    end_date: datetime,
+    organ_system: str
 ) -> Dict[str, Any]:
-    """Collect respiratory system parameters"""
-    config = SofaParameterConfigs.RESPIRATORY.copy()
-    config["extra_data"] = {
-        "mechanical_ventilation": False,  # TODO: Add detection from procedures
-        "pao2": SofaParameter(),
-        "fio2": SofaParameter()
+    """Collect parameters for any organ system using configuration"""
+    configs = {
+        "respiratory": SofaParameterConfigs.RESPIRATORY,
+        "coagulation": SofaParameterConfigs.COAGULATION,
+        "liver": SofaParameterConfigs.LIVER,
+        "cardiovascular": SofaParameterConfigs.CARDIOVASCULAR,
+        "cns": SofaParameterConfigs.CNS,
+        "renal": SofaParameterConfigs.RENAL
     }
+    
+    config = configs.get(organ_system, {}).copy()
+    if not config:
+        logger.warning(f"Unknown organ system: {organ_system}")
+        return {}
+    
+    # Special handling for respiratory system
+    if organ_system == "respiratory":
+        config["extra_data"] = {
+            "mechanical_ventilation": False,  # TODO: Add detection from procedures
+            "pao2": SofaParameter(),
+            "fio2": SofaParameter()
+        }
+    elif organ_system == "cardiovascular":
+        config["extra_data"] = {"map_value": SofaParameter()}
     
     return await _collect_fhir_parameters(fhir_client, patient_id, start_date, end_date, config)
 
-async def _collect_coagulation_parameters(
-    fhir_client: FHIRClient, 
-    patient_id: str, 
-    start_date: datetime, 
-    end_date: datetime
-) -> Dict[str, Any]:
-    """Collect coagulation system parameters"""
-    return await _collect_fhir_parameters(
-        fhir_client, patient_id, start_date, end_date, SofaParameterConfigs.COAGULATION
-    )
-
-async def _collect_liver_parameters(
-    fhir_client: FHIRClient, 
-    patient_id: str, 
-    start_date: datetime, 
-    end_date: datetime
-) -> Dict[str, Any]:
-    """Collect liver system parameters"""
-    return await _collect_fhir_parameters(
-        fhir_client, patient_id, start_date, end_date, SofaParameterConfigs.LIVER
-    )
-
-async def _collect_cardiovascular_parameters(
-    fhir_client: FHIRClient, 
-    patient_id: str, 
-    start_date: datetime, 
-    end_date: datetime
-) -> Dict[str, Any]:
-    """Collect cardiovascular system parameters"""
-    config = SofaParameterConfigs.CARDIOVASCULAR.copy()
-    config["extra_data"] = {"map_value": SofaParameter()}
-    
-    result = await _collect_fhir_parameters(fhir_client, patient_id, start_date, end_date, config)
-    
-    # Calculate MAP if both BP values available
+def _calculate_map_from_bp(result: Dict[str, Any]) -> None:
+    """Calculate MAP from blood pressure values if available"""
     systolic_bp = result.get("systolic_bp")
     diastolic_bp = result.get("diastolic_bp")
     
@@ -586,30 +577,6 @@ async def _collect_cardiovascular_parameters(
                 diastolic_bp.timestamp or datetime.min
             )
             map_value.source = "calculated"
-    
-    return result
-
-async def _collect_cns_parameters(
-    fhir_client: FHIRClient, 
-    patient_id: str, 
-    start_date: datetime, 
-    end_date: datetime
-) -> Dict[str, Any]:
-    """Collect central nervous system parameters"""
-    return await _collect_fhir_parameters(
-        fhir_client, patient_id, start_date, end_date, SofaParameterConfigs.CNS
-    )
-
-async def _collect_renal_parameters(
-    fhir_client: FHIRClient, 
-    patient_id: str, 
-    start_date: datetime, 
-    end_date: datetime
-) -> Dict[str, Any]:
-    """Collect renal system parameters"""
-    return await _collect_fhir_parameters(
-        fhir_client, patient_id, start_date, end_date, SofaParameterConfigs.RENAL
-    )
 
 async def _collect_vasopressor_data(
     fhir_client: FHIRClient, 

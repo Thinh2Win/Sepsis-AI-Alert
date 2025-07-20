@@ -14,12 +14,6 @@ from app.models.sofa import (
     SepsisAssessmentResponse, SofaScoreSummary, SepsisRiskLevel, 
     CalculationMetadata, SofaScoreResult, SofaParameters
 )
-# Import simplified models for future use
-from app.models.sofa_simplified import (
-    SepsisAssessmentResponse as SimplifiedSepsisAssessmentResponse,
-    SepsisAssessment as SimplifiedSepsisAssessment,
-    CalculationMetadata as SimplifiedCalculationMetadata
-)
 
 logger = logging.getLogger(__name__)
 
@@ -78,56 +72,6 @@ class SepsisResponseBuilder:
         )
         
         logger.debug(f"Built assessment response: SOFA {sofa_result.total_score}/24, Risk: {sepsis_risk.risk_level}")
-        return response
-    
-    @staticmethod
-    def build_simplified_assessment_response(
-        patient_id: str,
-        sofa_result: SofaScoreResult,
-        detailed_parameters: Optional[dict] = None,
-        timestamp: Optional[datetime] = None,
-        processing_time_ms: Optional[float] = None
-    ) -> SimplifiedSepsisAssessmentResponse:
-        """
-        Build a simplified sepsis assessment response using streamlined models
-        
-        Args:
-            patient_id: Patient FHIR ID
-            sofa_result: Calculated SOFA score result
-            detailed_parameters: Optional detailed parameter data as dict
-            timestamp: Target timestamp for assessment
-            processing_time_ms: Processing time in milliseconds
-        
-        Returns:
-            Simplified sepsis assessment response
-        """
-        # Create simplified assessment
-        simplified_assessment = SimplifiedSepsisAssessment.from_sofa_score(
-            sofa_score=sofa_result.total_score,
-            organ_dysfunction_count=sofa_result.organ_dysfunction_count,
-            severe_organs=sofa_result.severely_dysfunctional_organs,
-            estimated_params=sofa_result.estimated_parameters_count
-        )
-        
-        # Create simplified metadata
-        metadata = SimplifiedCalculationMetadata(
-            estimated_parameters=sofa_result.estimated_parameters_count,
-            missing_parameters=sofa_result.missing_parameters,
-            calculation_time_ms=processing_time_ms,
-            data_sources=["FHIR"]
-        )
-        
-        # Build simplified response
-        response = SimplifiedSepsisAssessmentResponse(
-            patient_id=patient_id,
-            timestamp=timestamp or datetime.now(),
-            sofa_score=sofa_result,
-            sepsis_assessment=simplified_assessment,
-            detailed_parameters=detailed_parameters,
-            calculation_metadata=metadata
-        )
-        
-        logger.debug(f"Built simplified assessment response: {response.summary}")
         return response
     
     @staticmethod
