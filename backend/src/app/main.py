@@ -5,7 +5,7 @@ import logging
 import traceback
 from typing import Dict, Any
 
-from app.routers import patients, vitals, labs, clinical
+from app.routers import patients, vitals, labs, clinical, sepsis_scoring
 from app.core.config import settings
 from app.core.middleware import RequestLoggingMiddleware
 from app.core.exceptions import FHIRException, AuthenticationException
@@ -64,6 +64,7 @@ app.include_router(patients.router, prefix="/api/v1/sepsis-alert", tags=["patien
 app.include_router(vitals.router, prefix="/api/v1/sepsis-alert", tags=["vitals"])
 app.include_router(labs.router, prefix="/api/v1/sepsis-alert", tags=["labs"])
 app.include_router(clinical.router, prefix="/api/v1/sepsis-alert", tags=["clinical"])
+app.include_router(sepsis_scoring.router, prefix="/api/v1/sepsis-alert", tags=["sepsis-scoring"])
 
 if __name__ == "__main__":
     import uvicorn

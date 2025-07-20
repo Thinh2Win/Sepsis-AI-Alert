@@ -46,27 +46,18 @@ Accept: application/fhir+json
   ```json
   {
     "id": "string",
-    "name": {
-      "given": ["string"],
-      "family": "string"
-    },
     "gender": "string",
     "birth_date": "YYYY-MM-DD",
     "age": 45,
-    "height": 175.0,
-    "weight": 70.0,
+    "primary_address": "123 Main St, Apt 4B",
+    "city": "Chicago",
+    "state": "IL",
+    "postal_code": "60601",
+    "height_cm": 175.0,
+    "weight_kg": 70.0,
     "bmi": 22.9,
-    "primary_contact": {
-      "name": "string",
-      "relationship": "string",
-      "phone": "string"
-    },
-    "address": {
-      "line": ["string"],
-      "city": "string",
-      "state": "string",
-      "postal_code": "string"
-    }
+    "primary_name": "Theodore Mychart",
+    "primary_phone": "+1 608-213-5806"
   }
   ```
 
@@ -87,8 +78,9 @@ curl -X GET \
 
 **Notes:**
 - Age is calculated from birth_date
-- BMI is computed from height/weight observations
-- Primary contact is extracted from Patient.contact array
+- BMI is computed from height_cm/weight_kg observations
+- Primary name and phone are extracted from FHIR Patient resource
+- Address fields are flattened from FHIR Address structure
 
 ---
 
@@ -152,20 +144,16 @@ curl -X GET \
               "use": "home"
             }
           ],
-          "address": [
-            {
-              "line": ["string"],
-              "city": "string",
-              "state": "string",
-              "postalCode": "string",
-              "country": "string",
-              "use": "home"
-            }
-          ],
           "age": 77,
-          "primary_name": "string",
-          "primary_phone": "string",
-          "primary_address": "string"
+          "primary_address": "134 Elmstreet",
+          "city": "Madison",
+          "state": "WI",
+          "postal_code": null,
+          "height_cm": 175.0,
+          "weight_kg": 70.0,
+          "bmi": 22.9,
+          "primary_name": "Theodore Mychart",
+          "primary_phone": "+1 608-213-5806"
         },
         "search": {
           "mode": "match",
@@ -1098,3 +1086,222 @@ Common error codes:
 ## Pagination
 
 FHIR Bundle pagination is handled automatically by the service. Large result sets are automatically paginated using FHIR's `link` elements.
+
+---
+
+## SOFA Sepsis Scoring Endpoints
+
+### Calculate Individual Patient Sepsis Score
+
+**Purpose:** Calculate SOFA (Sequential Organ Failure Assessment) score for sepsis risk assessment using comprehensive clinical data from FHIR.
+
+**HTTP Method & URL:** `GET /patients/{patient_id}/sepsis-score`
+
+**Path Parameters:**
+- `patient_id` (string, required) - FHIR Patient resource ID
+
+**Query Parameters:**
+- `timestamp` (datetime, optional) - Target timestamp for assessment (ISO format: YYYY-MM-DDTHH:MM:SS). Defaults to current time.
+- `include_parameters` (boolean, optional) - Include detailed parameter data in response. Default: false
+- `scoring_systems` (string, optional) - Comma-separated scoring systems. Currently supports: "SOFA". Default: "SOFA"
+
+**Headers:**
+- `Authorization: Bearer <token>` (required)
+- `Accept: application/fhir+json` (required)
+
+**Request Body:** None
+
+**Response:**
+- **Success:** 200 OK
+- **Body Schema:** SepsisAssessmentResponse model
+  ```json
+  {
+    "patient_id": "string",
+    "timestamp": "2024-01-01T12:00:00Z",
+    "sofa_score": {
+      "total_score": 8,
+      "mortality_risk": "Moderate (15-20%)",
+      "severity_classification": "Moderate organ dysfunction",
+      "individual_scores": {
+        "respiratory": 2,
+        "coagulation": 1,
+        "liver": 0,
+        "cardiovascular": 3,
+        "cns": 1,
+        "renal": 1
+      },
+      "clinical_alerts": [
+        "HIGH: Significant mortality risk",
+        "Severe cardiovascular dysfunction"
+      ],
+      "data_reliability": 0.85
+    },
+    "sepsis_assessment": {
+      "risk_level": "MODERATE",
+      "recommendation": "Close monitoring and consider treatment escalation",
+      "requires_immediate_attention": false,
+      "contributing_factors": [
+        "Severe cardiovascular dysfunction",
+        "Limited data availability"
+      ]
+    },
+    "detailed_parameters": null,
+    "calculation_metadata": {
+      "estimated_parameters": 2,
+      "missing_parameters": ["pao2_fio2_ratio", "urine_output_24h"],
+      "calculation_time_ms": 245.8,
+      "data_sources": ["FHIR"],
+      "last_parameter_update": "2024-01-01T11:45:00Z"
+    }
+  }
+  ```
+
+**Error Responses:**
+- **400 Bad Request:** Invalid patient ID or timestamp format
+- **401 Unauthorized:** Invalid or expired token
+- **404 Not Found:** Patient not found
+- **422 Unprocessable Entity:** Invalid scoring_systems parameter
+- **429 Too Many Requests:** Rate limit exceeded
+- **500 Internal Server Error:** FHIR service or calculation error
+
+**Example:**
+```bash
+curl -X GET \
+  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/sepsis-score?include_parameters=true&timestamp=2024-01-01T12:00:00Z" \
+  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
+  -H "Accept: application/fhir+json"
+```
+
+**Clinical Features:**
+- **SOFA Score Range:** 0-24 (higher scores indicate greater organ dysfunction)
+- **Organ Systems Assessed:** Respiratory, Coagulation, Liver, Cardiovascular, CNS, Renal
+- **Risk Stratification:** MINIMAL → LOW → MODERATE → HIGH → CRITICAL
+- **Mortality Risk:** Correlates with total SOFA score (0-6: <10%, >15: >80%)
+- **Clinical Alerts:** Automated alerts for high-risk conditions and severe organ dysfunction
+- **Data Quality:** Reliability scoring and estimation handling for missing parameters
+
+**Notes:**
+- Uses most recent clinical data within 24-hour window for each parameter
+- Handles missing data through clinical estimation and default values
+- Includes vasopressor requirements for cardiovascular assessment
+- Provides clinical recommendations based on risk level
+- Supports real-time sepsis monitoring and alerting
+
+---
+
+### Calculate Batch Patient Sepsis Scores
+
+**Purpose:** Calculate SOFA scores for multiple patients simultaneously for population monitoring and dashboard integration.
+
+**HTTP Method & URL:** `POST /patients/batch-sepsis-scores`
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Headers:**
+- `Authorization: Bearer <token>` (required)
+- `Accept: application/fhir+json` (required)
+- `Content-Type: application/json` (required)
+
+**Request Body:**
+```json
+{
+  "patient_ids": ["patient1", "patient2", "patient3"],
+  "timestamp": "2024-01-01T12:00:00Z",
+  "include_parameters": false,
+  "scoring_systems": "SOFA"
+}
+```
+
+**Request Body Schema:** BatchSepsisScoreRequest model
+- `patient_ids` (array, required) - List of FHIR Patient resource IDs (1-50 patients max)
+- `timestamp` (datetime, optional) - Target timestamp for all assessments
+- `include_parameters` (boolean, optional) - Include detailed parameters for all patients. Default: false
+- `scoring_systems` (string, optional) - Scoring systems to calculate. Default: "SOFA"
+
+**Response:**
+- **Success:** 200 OK
+- **Body Schema:** BatchSepsisScoreResponse model
+  ```json
+  {
+    "timestamp": "2024-01-01T12:00:00Z",
+    "patient_scores": [
+      {
+        "patient_id": "patient1",
+        "timestamp": "2024-01-01T12:00:00Z",
+        "sofa_score": {
+          "total_score": 12,
+          "mortality_risk": "High (40-50%)",
+          "severity_classification": "Moderate organ dysfunction",
+          "individual_scores": {
+            "respiratory": 3,
+            "coagulation": 2,
+            "liver": 1,
+            "cardiovascular": 4,
+            "cns": 1,
+            "renal": 1
+          },
+          "clinical_alerts": [
+            "HIGH: Significant mortality risk",
+            "Severe respiratory dysfunction",
+            "Severe cardiovascular dysfunction"
+          ]
+        },
+        "sepsis_assessment": {
+          "risk_level": "HIGH",
+          "recommendation": "Consider ICU consultation and aggressive treatment",
+          "requires_immediate_attention": true
+        }
+      }
+    ],
+    "errors": [
+      {
+        "patient_id": "patient3",
+        "error": "Patient not found",
+        "error_code": "PATIENT_NOT_FOUND"
+      }
+    ],
+    "success_count": 2,
+    "error_count": 1,
+    "high_risk_patients": ["patient1"]
+  }
+  ```
+
+**Error Responses:**
+- **400 Bad Request:** Invalid request body or too many patient IDs (>50)
+- **401 Unauthorized:** Invalid or expired token
+- **422 Unprocessable Entity:** Validation error in request parameters
+- **429 Too Many Requests:** Rate limit exceeded
+- **500 Internal Server Error:** Internal processing error
+
+**Example:**
+```bash
+curl -X POST \
+  "http://localhost:8000/api/v1/sepsis-alert/patients/batch-sepsis-scores" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
+  -d '{
+    "patient_ids": ["eRztxMp7qoNfNGkSiB7rDuB", "e74Q2ey-kqeOCXXuE5Q4nQB"],
+    "timestamp": "2024-01-01T12:00:00Z",
+    "include_parameters": false
+  }'
+```
+
+**Features:**
+- **Concurrent Processing:** Calculates scores for multiple patients in parallel
+- **Error Resilience:** Individual patient errors don't prevent other calculations
+- **High-Risk Identification:** Automatically identifies patients requiring immediate attention
+- **Population Monitoring:** Suitable for ICU dashboards and population health monitoring
+- **Batch Optimization:** Efficient FHIR data retrieval and processing
+
+**Notes:**
+- Maximum 50 patients per batch request
+- Processing time scales linearly with patient count
+- Failed individual calculations are returned in errors array
+- Success and error counts provided for monitoring
+- High-risk patients flagged for priority attention
+
+---
+
+

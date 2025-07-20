@@ -146,6 +146,7 @@ Sepsis-AI-Alert/
 ├── LICENSE                      # MIT license
 ├── requirements.txt             # Python dependencies
 ├── pytest.ini                   # Test configuration
+├── start_server.py              # Automated server startup script
 ├── private.pem                  # RSA private key for JWT
 ├── public_cert.pem              # Public certificate
 ├── docs/                        # Documentation files
@@ -154,44 +155,35 @@ Sepsis-AI-Alert/
 ├── backend/src/
 │   ├── main.py                  # Application entry point
 │   ├── app/                     # New modular FastAPI structure
-│   │   ├── __init__.py
 │   │   ├── main.py              # FastAPI application
 │   │   ├── core/                # Core functionality
-│   │   │   ├── __init__.py
 │   │   │   ├── config.py        # Pydantic settings management
 │   │   │   ├── dependencies.py  # Dependency injection
 │   │   │   ├── exceptions.py    # Custom exceptions
 │   │   │   ├── middleware.py    # Request logging middleware
 │   │   │   └── loinc_codes.py   # Comprehensive LOINC mappings
 │   │   ├── models/              # Pydantic data models
-│   │   │   ├── __init__.py
-│   │   │   ├── patient.py       # Patient demographics with computed fields
+│   │   │   ├── patient.py       # Simplified patient demographics with flattened fields
 │   │   │   ├── vitals.py        # Vital signs with sepsis scoring
 │   │   │   ├── labs.py          # Laboratory results by category
 │   │   │   └── clinical.py      # Clinical context models
 │   │   ├── routers/             # FastAPI route handlers
-│   │   │   ├── __init__.py
 │   │   │   ├── patients.py      # Patient demographics endpoints
 │   │   │   ├── vitals.py        # Vital signs endpoints
 │   │   │   ├── labs.py          # Laboratory results endpoints
 │   │   │   └── clinical.py      # Clinical context endpoints
 │   │   ├── services/            # Business logic services
-│   │   │   ├── __init__.py
 │   │   │   ├── auth_client.py   # Enhanced OAuth2 JWT authentication
 │   │   │   └── fhir_client.py   # Comprehensive FHIR R4 client
 │   │   └── utils/               # Utility functions
-│   │       ├── __init__.py
 │   │       ├── calculations.py  # Clinical calculations (age, BMI, etc.)
 │   │       ├── date_utils.py    # FHIR datetime utilities
 │   │       └── fhir_utils.py    # FHIR bundle processing
 │   └── tests/                   # Comprehensive test suite
-│       ├── __init__.py
 │       ├── conftest.py          # Pytest configuration
 │       ├── fixtures/            # Test data fixtures
-│       │   ├── __init__.py
 │       │   └── fhir_responses.py # Mock FHIR response data
 │       ├── test_endpoints/      # API endpoint tests
-│       │   ├── __init__.py
 │       │   ├── test_clinical.py # Clinical endpoints tests
 │       │   ├── test_labs.py     # Laboratory endpoints tests
 │       │   ├── test_patients.py # Patient endpoints tests
@@ -206,8 +198,8 @@ Sepsis-AI-Alert/
 
 ### Patient Demographics
 - **`GET /api/v1/sepsis-alert/patients/{patient_id}`** - Patient demographics with computed fields
-  - Returns: Patient info with calculated age, BMI, primary contact
-  - Features: FHIR Patient resource integration, height/weight observations
+  - Returns: Patient info with calculated age, BMI, flattened address and demographics
+  - Features: FHIR Patient resource integration, height/weight observations, simplified structure
 - **`POST /api/v1/sepsis-alert/patients/match`** - Patient matching by demographics
   - Request Body: `PatientMatchRequest` with given name, family name, birth date, phone, and address
   - Returns: Ranked patient matches with similarity scores and match confidence
@@ -246,6 +238,16 @@ Sepsis-AI-Alert/
   - Parameters: `start_date`, `end_date`
   - Returns: Intake/output analysis with oliguria detection
   - Features: Net balance calculation, hourly urine rate monitoring
+
+### SOFA Sepsis Scoring Endpoints
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`** - Individual sepsis risk assessment
+  - Query Parameters: `timestamp`, `include_parameters`, `scoring_systems`
+  - Returns: Complete SOFA score (0-24) with mortality risk, organ dysfunction assessment, and clinical alerts
+  - Features: Real-time sepsis scoring, risk stratification (MINIMAL/LOW/MODERATE/HIGH/CRITICAL), clinical recommendations
+- **`POST /api/v1/sepsis-alert/patients/batch-sepsis-scores`** - Batch sepsis scoring (max 50 patients)
+  - Request Body: `BatchSepsisScoreRequest` with patient IDs and scoring parameters
+  - Returns: Individual scores for all patients with error handling for failed calculations
+  - Features: Dashboard integration, population monitoring, high-risk patient identification
 
 ### System Endpoints
 - **`GET /health`** - Application health check
@@ -307,16 +309,18 @@ Sepsis-AI-Alert/
 
 6. **Run the application**
    ```bash
+   # Recommended: Automated startup script (handles venv activation and directory navigation)
+   python start_server.py
+   
+   # Alternative: Manual startup
+   # First activate virtual environment:
+   # Windows: venv\Scripts\activate
+   # Unix/macOS: source venv/bin/activate
+   # Then navigate and start server:
    cd backend/src
-   
-   # Option 1: Direct Python execution
    python main.py
-   
-   # Option 2: Using uvicorn (recommended for development)
+   # or
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   
-   # Option 3: Production mode
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
    ```
 
 ### Running Tests
@@ -388,10 +392,19 @@ pytest --cov=app --cov-report=html
 For development with auto-reload and debugging:
 
 ```bash
+# Recommended: Use the automated startup script
+python start_server.py
+
+# Alternative: Manual development setup
+# First activate virtual environment:
+# Windows: venv\Scripts\activate
+# Unix/macOS: source venv/bin/activate
+
 # Install development dependencies (if any)
 pip install -r requirements-dev.txt  # if exists
 
 # Run with debug mode and auto-reload
+cd backend/src
 uvicorn app.main:app --reload --debug --host 0.0.0.0 --port 8000
 
 # Run tests in watch mode (requires pytest-watch)

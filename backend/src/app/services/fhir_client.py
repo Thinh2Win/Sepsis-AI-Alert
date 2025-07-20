@@ -8,7 +8,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from app.core.config import settings
 from app.core.exceptions import FHIRException, PaginationException
 from app.services.auth_client import EpicAuthClient
-from app.models.patient import PatientResponse, PatientMatchRequest, PatientMatchResponse, PatientDemographics
+from app.models.patient import PatientMatchResult, PatientResponse, PatientMatchRequest, PatientMatchResponse
 from app.models.vitals import VitalSignsResponse, VitalSignsLatestResponse, VitalSignsTimeSeries, VitalSignsData, VitalSign, BloodPressure
 from app.models.labs import LabResultsResponse, CriticalLabsResponse
 from app.models.clinical import EncounterResponse, ConditionsResponse, MedicationsResponse, FluidBalanceResponse
@@ -151,42 +151,57 @@ class FHIRClient:
 
     async def get_patient(self, patient_id: str) -> PatientResponse:
         """
-        Get patient demographics using Patient.Read and Observation.Search for height/weight/BMI
+        Get patient demographics using Patient.Read and Observation.Search for height/weight
         """
         try:
             # 1. Get patient demographics
             patient_data = await self._make_request("GET", f"Patient/{patient_id}")
-            
-            # 2. Get height/weight/BMI observations
-            demographics_params = {
-                "patient": patient_id,
-                "code": "8302-2,29463-7,39156-5",  # height, weight, BMI
-                "_sort": "-date",
-                "_count": "3"  # Get latest of each type
-            }
-            demographics_bundle = await self._make_request("GET", "Observation", params=demographics_params)
-            
-            # 3. Process patient demographics
             demographics = extract_patient_demographics(patient_data)
             
-            # 4. Process demographic observations
-            patient_demographics = self._process_demographics_observations(demographics_bundle)
+            # 2. Get height/weight observations
+            height_cm = None
+            weight_kg = None
+            try:
+                demographics_params = {
+                    "patient": patient_id,
+                    "category": "vital-signs",
+                    "code": "8302-2,29463-7",  # height, weight
+                    "_sort": "-date",
+                    "_count": "10"
+                }
+                demographics_bundle = await self._make_request("GET", "Observation", params=demographics_params)
+                if demographics_bundle and demographics_bundle.get("entry"):
+                    observations = extract_observations_by_loinc(demographics_bundle, ["8302-2", "29463-7"])
+                    for obs in observations:
+                        if obs.get("loinc_code") == "8302-2":  # Height
+                            height_cm = convert_height_to_cm(obs.get("value"), obs.get("unit", ""))
+                        elif obs.get("loinc_code") == "29463-7":  # Weight
+                            weight_kg = convert_weight_to_kg(obs.get("value"), obs.get("unit", ""))
+            except Exception as demo_error:
+                logger.warning(f"Error fetching demographics observations for patient {patient_id}: {str(demo_error)}")
             
-            # 5. Create patient response
-            patient_response = PatientResponse(
+            # 3. Extract primary name and phone
+            primary_name = self._extract_primary_name(demographics.get("names", []))
+            primary_phone = self._extract_primary_phone(demographics.get("telecoms", []))
+            
+            # 4. Extract address fields directly
+            address_data = self._extract_primary_address(demographics.get("addresses", []))
+            
+            # 5. Create simplified patient response
+            return PatientResponse(
                 id=patient_data.get("id"),
                 active=patient_data.get("active"),
-                name=demographics.get("names", []),
-                telecom=demographics.get("telecoms", []),
                 gender=demographics.get("gender"),
                 birth_date=demographics.get("birth_date"),
-                address=demographics.get("addresses", []),
-                identifier=demographics.get("identifiers", []),
-                marital_status=patient_data.get("maritalStatus"),
-                demographics=patient_demographics
+                primary_address=address_data.get("primary_address"),
+                city=address_data.get("city"),
+                state=address_data.get("state"),
+                postal_code=address_data.get("postal_code"),
+                height_cm=height_cm,
+                weight_kg=weight_kg,
+                primary_name=primary_name,
+                primary_phone=primary_phone
             )
-            
-            return patient_response
             
         except Exception as e:
             logger.error(f"Error getting patient {patient_id}: {str(e)}")
@@ -221,7 +236,24 @@ class FHIRClient:
         }
 
         data = await self._make_request("POST", "Patient/$match", data=parameters)
-        return PatientMatchResponse(**data)
+        
+        # Process the raw FHIR response to populate PatientResponse objects
+        processed_entries = []
+        for entry in data.get("entry", []):
+            raw_patient = entry.get("resource", {})
+            if raw_patient.get("resourceType") == "Patient":
+                # Process the Patient resource into PatientResponse
+                processed_patient = self._process_patient_match_result(raw_patient)
+                processed_entries.append(PatientMatchResult(
+                    resource=processed_patient,
+                    search=entry.get("search")
+                ))
+        
+        return PatientMatchResponse(
+            resourceType=data.get("resourceType", "Bundle"),
+            total=data.get("total", 0),
+            entry=processed_entries
+        )
 
     async def get_vitals(self, patient_id: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, vital_type: Optional[str] = None) -> VitalSignsResponse:
         """
@@ -612,37 +644,88 @@ class FHIRClient:
                 "error": str(e)
             }
 
-    def _process_demographics_observations(self, bundle: Dict[str, Any]) -> PatientDemographics:
+
+    def _process_patient_match_result(self, patient_resource: Dict[str, Any]) -> PatientResponse:
         """
-        Process demographic observations (height, weight, BMI)
+        Process a FHIR Patient resource from match results into PatientResponse
         """
-        observations = extract_observations_by_loinc(bundle, ["8302-2", "29463-7", "39156-5"])
-        
-        height_cm = None
-        weight_kg = None
-        bmi = None
-        
-        for obs in observations:
-            loinc_code = obs.get("loinc_code")
-            value = obs.get("value")
-            unit = obs.get("unit", "")
+        try:
+            # Extract demographics using existing utilities
+            demographics = extract_patient_demographics(patient_resource)
             
-            if loinc_code == "8302-2" and value:  # Height
-                height_cm = convert_height_to_cm(value, unit)
-            elif loinc_code == "29463-7" and value:  # Weight
-                weight_kg = convert_weight_to_kg(value, unit)
-            elif loinc_code == "39156-5" and value:  # BMI
-                bmi = value
+            # Extract primary name and phone
+            primary_name = self._extract_primary_name(demographics.get("names", []))
+            primary_phone = self._extract_primary_phone(demographics.get("telecoms", []))
+            
+            # Extract address fields directly
+            address_data = self._extract_primary_address(demographics.get("addresses", []))
+            
+            # Create simplified patient response (skip height/weight for match operations)
+            return PatientResponse(
+                id=patient_resource.get("id"),
+                active=patient_resource.get("active"),
+                gender=demographics.get("gender"),
+                birth_date=demographics.get("birth_date"),
+                primary_address=address_data.get("primary_address"),
+                city=address_data.get("city"),
+                state=address_data.get("state"),
+                postal_code=address_data.get("postal_code"),
+                height_cm=None,  # Skip for match operations
+                weight_kg=None,  # Skip for match operations
+                primary_name=primary_name,
+                primary_phone=primary_phone
+            )
+            
+        except Exception as e:
+            logger.error(f"Error processing patient match result: {str(e)}")
+            # Return minimal patient response with just ID
+            return PatientResponse(
+                id=patient_resource.get("id", "unknown"),
+                primary_name=primary_name if 'primary_name' in locals() else None
+            )
+
+    def _extract_primary_name(self, names: List[Dict[str, Any]]) -> Optional[str]:
+        """Extract primary name from FHIR names array"""
+        if not names:
+            return None
         
-        # Calculate BMI if not provided but height and weight are available
-        if not bmi and height_cm and weight_kg:
-            bmi = calculate_bmi(height_cm, weight_kg)
+        # Find official name or use first name
+        primary = next((n for n in names if n.get("use") == "official"), names[0])
         
-        return PatientDemographics(
-            height_cm=height_cm,
-            weight_kg=weight_kg,
-            bmi=bmi
-        )
+        given_names = " ".join(primary.get("given", [])) if primary.get("given") else ""
+        family_name = primary.get("family", "")
+        
+        full_name = f"{given_names} {family_name}".strip()
+        return full_name if full_name else None
+
+    def _extract_primary_phone(self, telecoms: List[Dict[str, Any]]) -> Optional[str]:
+        """Extract primary phone from FHIR telecoms array"""
+        if not telecoms:
+            return None
+        
+        # Find phone number (prefer home, then any phone)
+        phone = next((t for t in telecoms if t.get("system") == "phone"), None)
+        return phone.get("value") if phone else None
+
+    def _extract_primary_address(self, addresses: List[Dict[str, Any]]) -> Dict[str, Optional[str]]:
+        """Extract primary address fields from FHIR addresses array"""
+        if not addresses:
+            return {"primary_address": None, "city": None, "state": None, "postal_code": None}
+        
+        # Use first address (primary)
+        addr = addresses[0]
+        
+        # Build primary address string from line components
+        primary_address = None
+        if addr.get("line"):
+            primary_address = ", ".join(addr["line"])
+        
+        return {
+            "primary_address": primary_address,
+            "city": addr.get("city"),
+            "state": addr.get("state"),
+            "postal_code": addr.get("postal_code")
+        }
 
     def _process_vitals_results(self, vital_results: List[Dict[str, Any]]) -> VitalSignsTimeSeries:
         """

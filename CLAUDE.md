@@ -15,25 +15,11 @@ This is a Sepsis AI EHR Alert System - an AI-powered Clinical Decision Support (
 6. Make every task and code change you do as simple as possible. We want to avoid making any massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity.
 7. Finally, add a review section to the docs directory with a summary of the changes you made and any other relevant information.
 
-### Python Backend
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the FastAPI development server (new modular structure)
-cd backend/src
-python main.py
-# or
-uvicorn main:app --reload
-
-# Run individual scripts for testing (legacy)
-python backend/src/fetch_patient.py
-```
-
 ### Virtual Environment
 
-The project uses a Python virtual environment located in the `venv/` directory. To activate it:
+The project uses a Python virtual environment located in the `venv/` directory. The `start_server.py` script automatically handles virtual environment activation when starting the server.
+
+For manual activation (if needed):
 - Windows: `venv\Scripts\activate`
 - Unix/macOS: `source venv/bin/activate`
 
@@ -43,9 +29,6 @@ The project uses a Python virtual environment located in the `venv/` directory. 
 
 #### Application Entry Point
 - **main.py**: Application entry point that imports from new modular structure
-
-#### Legacy Files (Preserved)
-- **fetch_patient.py**: Legacy FHIR client utility (preserved for reference)
 
 #### New Modular Structure (`backend/src/app/`)
 
@@ -68,15 +51,20 @@ The project uses a Python virtual environment located in the `venv/` directory. 
 - **vitals.py**: Vital signs endpoints with time-series and latest data
 - **labs.py**: Laboratory results endpoints with critical value filtering
 - **clinical.py**: Clinical context endpoints (encounters, conditions, medications, fluid balance)
+- **sepsis_scoring.py**: SOFA sepsis scoring endpoints with risk assessment and batch processing
 
 ##### Services (`app/services/`)
 - **auth_client.py**: Enhanced OAuth2 JWT authentication with proper error handling
 - **fhir_client.py**: Comprehensive FHIR R4 client with retry logic, pagination, and data processing
+- **sepsis_scoring_service.py**: Business logic for SOFA scoring calculations and risk assessment
+- **sepsis_response_builder.py**: Centralized response building for sepsis assessments
 
 ##### Utils (`app/utils/`)
 - **calculations.py**: Clinical calculation utilities (age, BMI, blood pressure, fever detection)
 - **date_utils.py**: FHIR datetime parsing, validation, and time-based calculations
 - **fhir_utils.py**: FHIR bundle processing, observation extraction, and data transformation
+- **sofa_scoring.py**: SOFA score calculation algorithms and clinical assessment logic
+- **error_handling.py**: Standardized error handling decorators and validation utilities
 
 ### Key Dependencies
 
@@ -213,7 +201,7 @@ Urine output
 - [x] **Configuration Management**: Environment-based settings with validation
 
 #### Data Models & Validation
-- [x] **Patient Models**: Demographics with computed fields (age, BMI, contacts)
+- [x] **Patient Models**: Simplified demographics with flattened address and demographic fields
 - [x] **Vital Signs Models**: Time-series data with clinical interpretation and sepsis scoring
 - [x] **Laboratory Models**: Organized by category with organ dysfunction assessment
 - [x] **Clinical Models**: Encounters, conditions, medications, fluid balance
@@ -230,13 +218,23 @@ Urine output
 - [x] **Vital Signs**: `/api/v1/sepsis-alert/patients/{patient_id}/vitals`
 - [x] **Laboratory Results**: `/api/v1/sepsis-alert/patients/{patient_id}/labs`
 - [x] **Clinical Context**: `/api/v1/sepsis-alert/patients/{patient_id}/encounter`
+- [x] **SOFA Sepsis Scoring**: `/api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`
+- [x] **Batch Sepsis Scoring**: `/api/v1/sepsis-alert/patients/batch-sepsis-scores`
+
+#### SOFA Scoring Implementation
+- [x] **SOFA Score Calculation**: Complete 6-organ system assessment (respiratory, coagulation, liver, cardiovascular, CNS, renal)
+- [x] **Risk Stratification**: Mortality risk assessment with clinical recommendations
+- [x] **Data Quality Tracking**: Missing parameter detection and reliability scoring
+- [x] **Clinical Alerts**: Severity-based alerting with organ dysfunction detection
+- [x] **Batch Processing**: Multi-patient scoring with error handling
+- [x] **Configuration Management**: Centralized constants and thresholds
 
 ### 🔄 In Progress
 
-#### FHIR Client Implementation
-- [ ] **Data Processing Methods**: Complete implementation of FHIR bundle processing
-- [ ] **Observation Extraction**: Implement LOINC-based observation extraction
-- [ ] **Clinical Scoring**: Implement sepsis scoring algorithms
+#### Enhanced Features
+- [ ] **Trend Analysis**: Historical SOFA score tracking and deterioration detection
+- [ ] **qSOFA Integration**: Quick SOFA implementation for non-ICU screening
+- [ ] **NEWS2 Integration**: National Early Warning Score implementation
 
 ### 📋 Next Steps
 
@@ -264,7 +262,7 @@ Patient.Read (R4)
 
 Endpoint: GET [base]/Patient/{id}
 Input: id = Patient FHIR ID (not MRN)
-Returns: Single Patient resource
+Returns: Simplified Patient resource with flattened fields
 
 
 Observation.Search (R4) - For Height/Weight/BMI
@@ -343,10 +341,16 @@ Response (PatientMatchResponse):
     {
       "resource": {
         "id": "e63wRTbPfr1p8UW81d8Seiw3",
-        "name": [{"family": "Mychart", "given": ["Theodore"]}],
-        "birthDate": "1948-07-07",
         "gender": "male",
+        "birth_date": "1948-07-07",
         "age": 77,
+        "primary_address": "134 Elmstreet",
+        "city": "Madison",
+        "state": "WI",
+        "postal_code": "53706",
+        "height_cm": 175.0,
+        "weight_kg": 70.0,
+        "bmi": 22.9,
         "primary_name": "Theodore Mychart",
         "primary_phone": "+1 608-213-5806"
       },
