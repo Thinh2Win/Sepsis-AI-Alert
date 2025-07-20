@@ -16,7 +16,15 @@ from app.models.sofa import (
 from app.services.fhir_client import FHIRClient
 from app.services.sepsis_response_builder import SepsisResponseBuilder, ProcessingTimer
 from app.utils.sofa_scoring import calculate_total_sofa, collect_sofa_parameters
+from app.utils.qsofa_scoring import calculate_total_qsofa, collect_qsofa_parameters
 from app.utils.error_handling import validate_patient_id, validate_scoring_systems
+
+# Ensure models are rebuilt to resolve forward references
+try:
+    from app.models.qsofa import rebuild_models
+    rebuild_models()
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -54,17 +62,55 @@ class SepsisScoringService:
                 patient_id, timestamp, include_parameters, scoring_systems
             )
             
-            # Calculate SOFA score
-            sofa_result = await calculate_total_sofa(
-                patient_id=patient_id,
-                fhir_client=self.fhir_client,
-                timestamp=timestamp
-            )
+            # Parse requested scoring systems
+            requested_systems = [system.strip().upper() for system in scoring_systems.split(",")]
             
-            # Collect detailed parameters if requested
+            # Initialize results
+            sofa_result = None
+            qsofa_result = None
             detailed_parameters = None
-            if include_parameters:
-                detailed_parameters = await collect_sofa_parameters(
+            detailed_qsofa_parameters = None
+            
+            # Calculate SOFA score if requested
+            if "SOFA" in requested_systems:
+                sofa_result = await calculate_total_sofa(
+                    patient_id=patient_id,
+                    fhir_client=self.fhir_client,
+                    timestamp=timestamp
+                )
+                
+                # Collect detailed SOFA parameters if requested
+                if include_parameters:
+                    detailed_parameters = await collect_sofa_parameters(
+                        patient_id=patient_id,
+                        fhir_client=self.fhir_client,
+                        timestamp=timestamp
+                    )
+            
+            # Calculate qSOFA score if requested
+            if "QSOFA" in requested_systems:
+                try:
+                    qsofa_result = await calculate_total_qsofa(
+                        patient_id=patient_id,
+                        fhir_client=self.fhir_client,
+                        timestamp=timestamp
+                    )
+                    
+                    # Collect detailed qSOFA parameters if requested
+                    if include_parameters:
+                        detailed_qsofa_parameters = await collect_qsofa_parameters(
+                            patient_id=patient_id,
+                            fhir_client=self.fhir_client,
+                            timestamp=timestamp
+                        )
+                except Exception as e:
+                    logger.error(f"Error calculating qSOFA score: {str(e)}")
+                    # Create a fallback qSOFA result with score 0
+                    qsofa_result = await self._create_fallback_qsofa_result(patient_id, timestamp or datetime.now())
+            
+            # Default to SOFA if no valid systems specified
+            if not sofa_result and not qsofa_result:
+                sofa_result = await calculate_total_sofa(
                     patient_id=patient_id,
                     fhir_client=self.fhir_client,
                     timestamp=timestamp
@@ -74,13 +120,23 @@ class SepsisScoringService:
             response = SepsisResponseBuilder.build_assessment_response(
                 patient_id=patient_id,
                 sofa_result=sofa_result,
+                qsofa_result=qsofa_result,
                 detailed_parameters=detailed_parameters,
+                detailed_qsofa_parameters=detailed_qsofa_parameters,
                 timestamp=timestamp,
                 processing_time_ms=timer.elapsed_ms,
                 include_parameters=include_parameters
             )
             
-            logger.info(f"Sepsis score calculated: SOFA {sofa_result.total_score}/24, Risk: {response.sepsis_assessment.risk_level}, Time: {timer.elapsed_ms:.1f}ms")
+            # Log calculation results
+            log_parts = []
+            if sofa_result:
+                log_parts.append(f"SOFA {sofa_result.total_score}/24")
+            if qsofa_result:
+                log_parts.append(f"qSOFA {qsofa_result.total_score}/3")
+            score_info = ", ".join(log_parts) if log_parts else "No scores calculated"
+            
+            logger.info(f"Sepsis score calculated: {score_info}, Risk: {response.sepsis_assessment.risk_level}, Time: {timer.elapsed_ms:.1f}ms")
             
             return response
     
@@ -137,6 +193,67 @@ class SepsisScoringService:
             
             return batch_response
     
+    async def _create_fallback_qsofa_result(
+        self,
+        patient_id: str,
+        timestamp: datetime
+    ) -> "QsofaScoreResult":
+        """Create a fallback qSOFA result when calculation fails"""
+        from app.models.qsofa import (
+            QsofaScoreResult, QsofaComponentScore, QsofaParameters, QsofaParameter
+        )
+        
+        logger.warning(f"Creating fallback qSOFA result for patient [REDACTED]")
+        
+        # Create default parameters with estimated values
+        fallback_params = QsofaParameters(
+            patient_id=patient_id,
+            timestamp=timestamp,
+            respiratory_rate=QsofaParameter(value=16.0, source="default", is_estimated=True),
+            systolic_bp=QsofaParameter(value=120.0, source="default", is_estimated=True),
+            gcs=QsofaParameter(value=15.0, source="default", is_estimated=True),
+            altered_mental_status=False
+        )
+        
+        # Create component scores (all normal, score = 0)
+        respiratory_score = QsofaComponentScore(
+            component="Respiratory",
+            score=0,
+            threshold_met=False,
+            interpretation="Respiratory rate: 16 breaths/min (estimated default)",
+            parameters_used=["respiratory_rate"]
+        )
+        
+        cardiovascular_score = QsofaComponentScore(
+            component="Cardiovascular",
+            score=0,
+            threshold_met=False,
+            interpretation="Systolic BP: 120 mmHg (estimated default)",
+            parameters_used=["systolic_bp"]
+        )
+        
+        cns_score = QsofaComponentScore(
+            component="Central Nervous System",
+            score=0,
+            threshold_met=False,
+            interpretation="Mental status: Normal (estimated default)",
+            parameters_used=["gcs", "mental_status_assessment"]
+        )
+        
+        # Create fallback result
+        return QsofaScoreResult(
+            patient_id=patient_id,
+            timestamp=timestamp,
+            respiratory_score=respiratory_score,
+            cardiovascular_score=cardiovascular_score,
+            cns_score=cns_score,
+            total_score=0,
+            high_risk=False,
+            estimated_parameters_count=3,  # All parameters estimated
+            missing_parameters=["respiratory_rate", "systolic_bp", "gcs"],
+            data_reliability_score=0.0  # Low reliability due to all estimates
+        )
+    
     def _validate_and_create_request(
         self,
         patient_id: str,
@@ -153,7 +270,7 @@ class SepsisScoringService:
             scoring_systems=scoring_systems
         )
         
-        validate_scoring_systems(request_params.requested_systems)
+        validate_scoring_systems(request_params.requested_systems, ["SOFA", "QSOFA"])
         return request_params
 
 

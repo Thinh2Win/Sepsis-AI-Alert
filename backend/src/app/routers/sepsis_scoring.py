@@ -25,7 +25,7 @@ async def get_sepsis_score(
     patient_id: str,
     timestamp: Optional[datetime] = Query(None, description="Target timestamp for score calculation (ISO format)"),
     include_parameters: bool = Query(False, description="Include detailed parameter data in response"),
-    scoring_systems: str = Query("SOFA", description="Scoring systems to calculate (currently only SOFA supported)"),
+    scoring_systems: str = Query("SOFA,qSOFA", description="Scoring systems to calculate (SOFA, qSOFA, or SOFA,qSOFA). Both calculated by default."),
     fhir_client: FHIRClient = Depends(get_fhir_client)
 ):
     """
@@ -33,12 +33,13 @@ async def get_sepsis_score(
     
     **Current Implementation:**
     - SOFA (Sequential Organ Failure Assessment) score
-    - Overall sepsis risk assessment
+    - qSOFA (Quick SOFA) score
+    - Overall sepsis risk assessment with combined scores
     - Clinical recommendations
     
     **Future Extensions:**
-    - qSOFA (Quick SOFA) score
     - NEWS2 (National Early Warning Score 2)
+    - SIRS (Systemic Inflammatory Response Syndrome) criteria
     - Aggregated sepsis likelihood assessment
     
     **Use Cases:**
@@ -50,14 +51,15 @@ async def get_sepsis_score(
     **Query Parameters:**
     - `timestamp`: Calculate score for specific time (defaults to current time)
     - `include_parameters`: Include detailed FHIR parameter data
-    - `scoring_systems`: Future support for "SOFA,qSOFA,NEWS2" (currently SOFA only)
+    - `scoring_systems`: Specify which systems to calculate (default: "SOFA,qSOFA" for both)
     
     **Response includes:**
-    - SOFA total score (0-24) with mortality risk assessment
-    - Individual organ system scores
-    - Overall sepsis risk level (MINIMAL/LOW/MODERATE/HIGH/CRITICAL)
-    - Clinical alerts and recommendations
-    - Data quality indicators
+    - SOFA total score (0-24) with mortality risk assessment (calculated by default)
+    - qSOFA total score (0-3) with high-risk threshold assessment (calculated by default)
+    - Individual component scores for all calculated systems
+    - Overall sepsis risk level (MINIMAL/LOW/MODERATE/HIGH/CRITICAL) based on combined assessment
+    - Clinical alerts and recommendations based on all calculated scores
+    - Data quality indicators and missing parameter information
     """
     # Delegate to service layer
     service = SepsisScoringServiceFactory.create_service(fhir_client)
