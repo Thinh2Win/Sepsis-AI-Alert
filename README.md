@@ -21,6 +21,7 @@ This project showcases a practical application of Artificial Intelligence (AI) a
 
 * **Clinical Objective:**
   * Rapidly detect and predict sepsis using clinically validated scoring systems (qSOFA, SOFA scores)
+  * Early detection of clinical deterioration using NEWS2 (National Early Warning Score 2)
   * Alert clinicians proactively with severity indicators and recommended interventions
   * Provide comprehensive sepsis-related data aggregation and trend analysis
 
@@ -79,12 +80,33 @@ The system analyzes comprehensive clinical indicators from standardized FHIR R4 
 * **Data Window:** 4-hour lookback for rapid assessment
 * **High Risk Threshold:** ≥2 points indicates 10-fold increased risk of in-hospital mortality
 
+#### NEWS2 (National Early Warning Score 2)
+* **Purpose:** Early detection of clinical deterioration for all adult patients
+* **Score Range:** 0-20 points across 7 vital sign parameters
+* **Parameters:**
+  - Respiratory rate (0-3 points)
+  - Oxygen saturation with Scale 2 for COPD (0-3 points)
+  - Supplemental oxygen therapy (0 or 2 points)
+  - Temperature (0-3 points)
+  - Systolic blood pressure (0-3 points)
+  - Heart rate (0-3 points)
+  - Level of consciousness/AVPU (0 or 3 points)
+* **Data Window:** 4-hour lookback for rapid assessment
+* **Risk Levels:** 0-4 (LOW/routine monitoring), 5-6 (MEDIUM/urgent review), ≥7 (HIGH/emergency assessment)
+* **Data Reuse Optimization:** Reuses 6/7 parameters from SOFA/qSOFA (~85% API call reduction)
+
 ### Combined Risk Assessment Levels
-* 🟢 **MINIMAL** - qSOFA 0, SOFA 0-6
-* 🟡 **LOW** - qSOFA 1, SOFA 7-9
-* 🟠 **MODERATE** - qSOFA 1, SOFA 10-12 OR qSOFA 2, SOFA <10
-* 🔴 **HIGH** - qSOFA ≥2, SOFA 13-14
-* 🚨 **CRITICAL** - qSOFA 3, SOFA ≥15
+The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide comprehensive risk assessment:
+* 🟢 **MINIMAL** - All scores low risk (qSOFA 0, SOFA 0-6, NEWS2 0-4)
+* 🟡 **LOW** - Mild elevation in any system (qSOFA 1, SOFA 7-9, NEWS2 0-4)
+* 🟠 **MODERATE** - Moderate concern (qSOFA 1-2, SOFA 10-12, NEWS2 5-6)
+* 🔴 **HIGH** - High risk in any system (qSOFA ≥2, SOFA 13-14, NEWS2 ≥7)
+* 🚨 **CRITICAL** - Critical deterioration (qSOFA 3, SOFA ≥15, NEWS2 ≥7 with multiple parameters = 3)
+
+**Risk Prioritization Logic:** The system takes the highest risk level among all calculated scores, with special priority given to:
+- qSOFA ≥2 (sepsis concern)
+- NEWS2 ≥7 (clinical deterioration)
+- SOFA ≥10 (organ dysfunction)
 
 ---
 
@@ -187,13 +209,14 @@ Sepsis-AI-Alert/
 │   │   │   ├── labs.py          # Laboratory results by category
 │   │   │   ├── clinical.py      # Clinical context models
 │   │   │   ├── sofa.py          # SOFA scoring models
-│   │   │   └── qsofa.py         # qSOFA scoring models
+│   │   │   ├── qsofa.py         # qSOFA scoring models
+│   │   │   └── news2.py         # NEWS2 scoring models
 │   │   ├── routers/             # FastAPI route handlers
 │   │   │   ├── patients.py      # Patient demographics endpoints
 │   │   │   ├── vitals.py        # Vital signs endpoints
 │   │   │   ├── labs.py          # Laboratory results endpoints
 │   │   │   ├── clinical.py      # Clinical context endpoints
-│   │   │   └── sepsis_scoring.py # SOFA and qSOFA scoring endpoints
+│   │   │   └── sepsis_scoring.py # SOFA, qSOFA, and NEWS2 scoring endpoints
 │   │   ├── services/            # Business logic services
 │   │   │   ├── auth_client.py   # Enhanced OAuth2 JWT authentication
 │   │   │   └── fhir_client.py   # Comprehensive FHIR R4 client
@@ -203,6 +226,7 @@ Sepsis-AI-Alert/
 │   │       ├── fhir_utils.py    # FHIR bundle processing
 │   │       ├── sofa_scoring.py  # SOFA scoring algorithms
 │   │       ├── qsofa_scoring.py # qSOFA scoring algorithms
+│   │       ├── news2_scoring.py # NEWS2 scoring algorithms with data reuse
 │   │       ├── scoring_utils.py # Shared scoring utilities (DRY/KISS)
 │   │       └── error_handling.py # Standardized error handling
 │   └── tests/                   # Comprehensive test suite
@@ -266,14 +290,14 @@ Sepsis-AI-Alert/
   - Features: Net balance calculation, hourly urine rate monitoring
 
 ### Sepsis Scoring Endpoints
-- **`GET /api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`** - Individual sepsis risk assessment
-  - Query Parameters: `timestamp`, `include_parameters`, `scoring_systems` (SOFA, qSOFA, or both)
-  - Returns: Complete SOFA score (0-24) and qSOFA score (0-3) with mortality risk, organ dysfunction assessment, and clinical alerts
-  - Features: Real-time sepsis scoring, dual scoring system assessment, risk stratification (MINIMAL/LOW/MODERATE/HIGH/CRITICAL), clinical recommendations
-- **`POST /api/v1/sepsis-alert/patients/batch-sepsis-scores`** - Batch sepsis scoring (max 50 patients)
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`** - Comprehensive sepsis & deterioration risk assessment
+  - Query Parameters: `timestamp`, `include_parameters`, `scoring_systems` (SOFA, qSOFA, NEWS2, or any combination - all three by default)
+  - Returns: Complete assessment with SOFA score (0-24), qSOFA score (0-3), and NEWS2 score (0-20) with mortality risk, organ dysfunction, clinical deterioration assessment, and alerts
+  - Features: **Triple scoring system assessment**, data reuse optimization (~85% reduction in API calls), intelligent risk stratification (MINIMAL/LOW/MODERATE/HIGH/CRITICAL), clinical recommendations
+- **`POST /api/v1/sepsis-alert/patients/batch-sepsis-scores`** - Batch comprehensive scoring (max 50 patients)
   - Request Body: `BatchSepsisScoreRequest` with patient IDs and scoring parameters
-  - Returns: Individual SOFA and qSOFA scores for all patients with error handling for failed calculations
-  - Features: Dashboard integration, population monitoring, high-risk patient identification, dual scoring assessment
+  - Returns: Individual SOFA, qSOFA, and NEWS2 scores for all patients with error handling for failed calculations
+  - Features: Dashboard integration, population monitoring, high-risk patient identification, **triple scoring assessment** with performance optimization
 
 ### System Endpoints
 - **`GET /health`** - Application health check
@@ -454,9 +478,9 @@ ptw backend/src/tests/
 ### Immediate Roadmap
 - [x] Complete FHIR client implementation with data processing
 - [x] Implement comprehensive sepsis scoring algorithms (SOFA and qSOFA)
+- [x] Implement NEWS2 (National Early Warning Score) integration with data reuse optimization
 - [ ] Add real-time alerting system
 - [ ] Create clinical dashboard frontend
-- [ ] Implement NEWS2 (National Early Warning Score) integration
 
 ### Long-term Vision
 - [ ] Machine learning model integration

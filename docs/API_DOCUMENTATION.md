@@ -1093,7 +1093,7 @@ FHIR Bundle pagination is handled automatically by the service. Large result set
 
 ### Scoring Systems Overview
 
-The Sepsis AI Alert System supports two complementary sepsis scoring systems:
+The Sepsis AI Alert System supports three complementary clinical scoring systems:
 
 #### SOFA (Sequential Organ Failure Assessment)
 - **Purpose:** Comprehensive organ dysfunction assessment for ICU patients
@@ -1109,11 +1109,19 @@ The Sepsis AI Alert System supports two complementary sepsis scoring systems:
 - **Data Window:** 4-hour lookback for rapid assessment
 - **Use Case:** Early identification of patients at risk for poor outcomes
 
-Both scoring systems are calculated by default to provide comprehensive sepsis assessment.
+#### NEWS2 (National Early Warning Score 2)
+- **Purpose:** Early detection of clinical deterioration for all adult patients
+- **Score Range:** 0-20 points across 7 vital sign parameters
+- **Parameters:** Respiratory rate, SpO2, supplemental oxygen, temperature, systolic BP, heart rate, consciousness (AVPU/GCS)
+- **Data Window:** 4-hour lookback for rapid assessment
+- **Use Case:** Universal clinical deterioration detection and monitoring frequency determination
+- **Performance Optimization:** Reuses 6/7 parameters from SOFA/qSOFA data (~85% API call reduction)
+
+All three scoring systems are calculated by default to provide comprehensive clinical assessment combining sepsis-specific and general deterioration indicators.
 
 ### Calculate Individual Patient Sepsis Score
 
-**Purpose:** Calculate SOFA (Sequential Organ Failure Assessment) and qSOFA (Quick SOFA) scores for sepsis risk assessment using comprehensive clinical data from FHIR.
+**Purpose:** Calculate SOFA, qSOFA, and NEWS2 scores for comprehensive sepsis risk assessment and clinical deterioration detection using clinical data from FHIR.
 
 **HTTP Method & URL:** `GET /patients/{patient_id}/sepsis-score`
 
@@ -1123,7 +1131,7 @@ Both scoring systems are calculated by default to provide comprehensive sepsis a
 **Query Parameters:**
 - `timestamp` (datetime, optional) - Target timestamp for assessment (ISO format: YYYY-MM-DDTHH:MM:SS). Defaults to current time.
 - `include_parameters` (boolean, optional) - Include detailed parameter data in response. Default: false
-- `scoring_systems` (string, optional) - Comma-separated scoring systems. Supports: "SOFA", "qSOFA", or "SOFA,qSOFA". Default: "SOFA,qSOFA"
+- `scoring_systems` (string, optional) - Comma-separated scoring systems. Supports: "SOFA", "qSOFA", "NEWS2", or any combination (e.g., "SOFA,qSOFA,NEWS2"). Default: "SOFA,qSOFA,NEWS2"
 
 **Headers:**
 - `Authorization: Bearer <token>` (required)
@@ -1166,11 +1174,33 @@ Both scoring systems are calculated by default to provide comprehensive sepsis a
       "hypotension_present": false,
       "altered_mental_status_present": true
     },
+    "news2_score": {
+      "total_score": 8,
+      "risk_level": "HIGH",
+      "clinical_response": "Emergency assessment",
+      "clinical_interpretation": "High risk - Emergency assessment and continuous monitoring required",
+      "monitoring_frequency": "Continuous monitoring",
+      "escalation_required": true,
+      "data_reliability_score": 0.92,
+      "respiratory_rate_elevated": true,
+      "oxygen_saturation_low": false,
+      "on_supplemental_oxygen": false,
+      "temperature_abnormal": true,
+      "hypotension_present": false,
+      "heart_rate_abnormal": true,
+      "consciousness_impaired": true,
+      "any_single_parameter_high": true
+    },
     "sepsis_assessment": {
       "risk_level": "HIGH",
-      "recommendation": "Consider immediate sepsis evaluation and ICU consultation",
+      "recommendation": "Combined assessment (SOFA + qSOFA + NEWS2): Consider immediate sepsis evaluation and ICU consultation",
       "requires_immediate_attention": true,
       "contributing_factors": [
+        "SOFA score 8/24",
+        "qSOFA score 2/3",
+        "NEWS2 score 8/20",
+        "qSOFA ≥2 (sepsis concern)",
+        "NEWS2 high risk (clinical deterioration)",
         "High qSOFA score (≥2)",
         "Moderate SOFA score",
         "Respiratory rate elevation",
@@ -1207,29 +1237,36 @@ curl -X GET \
 **Clinical Features:**
 - **SOFA Score Range:** 0-24 (higher scores indicate greater organ dysfunction)
 - **qSOFA Score Range:** 0-3 (≥2 indicates high risk for poor outcomes)
+- **NEWS2 Score Range:** 0-20 (0-4: LOW, 5-6: MEDIUM, ≥7: HIGH risk)
 - **SOFA Organ Systems:** Respiratory, Coagulation, Liver, Cardiovascular, CNS, Renal
 - **qSOFA Parameters:** Respiratory rate ≥22, Systolic BP ≤100, GCS <15
-- **Risk Stratification:** MINIMAL → LOW → MODERATE → HIGH → CRITICAL
+- **NEWS2 Parameters:** 7 vital signs (RR, SpO2, supplemental O2, temp, SBP, HR, consciousness)
+- **Risk Stratification:** MINIMAL → LOW → MODERATE → HIGH → CRITICAL (combined assessment)
 - **SOFA Mortality Risk:** Correlates with total score (0-6: <10%, >15: >80%)
 - **qSOFA High Risk:** Score ≥2 indicates 10-fold increased risk of in-hospital mortality
+- **NEWS2 Clinical Response:** 0-4 (routine), 5-6 (urgent review), ≥7 (emergency assessment)
+- **Performance Optimization:** NEWS2 reuses SOFA/qSOFA parameters (~85% API call reduction)
 - **Clinical Alerts:** Automated alerts for high-risk conditions and severe organ dysfunction
 - **Data Quality:** Reliability scoring and estimation handling for missing parameters
 
 **Notes:**
 - SOFA uses most recent clinical data within 24-hour window for each parameter
 - qSOFA uses most recent clinical data within 4-hour window for rapid assessment
+- NEWS2 uses most recent clinical data within 4-hour window for rapid clinical deterioration assessment
 - Handles missing data through clinical estimation and default values
 - SOFA includes vasopressor requirements for cardiovascular assessment
 - qSOFA provides rapid bedside screening using basic vital signs and mental status
-- Provides clinical recommendations based on combined risk assessment
-- Supports real-time sepsis monitoring and alerting
-- Both scores calculated by default for comprehensive assessment
+- NEWS2 provides early warning of clinical deterioration using 7 vital sign parameters
+- NEWS2 implements data reuse optimization, sharing 6/7 parameters with SOFA/qSOFA to reduce API calls by ~85%
+- Provides clinical recommendations based on combined risk assessment from all three scoring systems
+- Supports real-time sepsis monitoring, clinical deterioration alerting, and population health monitoring
+- All three scores (SOFA, qSOFA, NEWS2) calculated by default for comprehensive assessment
 
 ---
 
 ### Calculate Batch Patient Sepsis Scores
 
-**Purpose:** Calculate SOFA and qSOFA scores for multiple patients simultaneously for population monitoring and dashboard integration.
+**Purpose:** Calculate SOFA, qSOFA, and NEWS2 scores for multiple patients simultaneously for population monitoring, clinical deterioration detection, and dashboard integration.
 
 **HTTP Method & URL:** `POST /patients/batch-sepsis-scores`
 
@@ -1248,7 +1285,7 @@ curl -X GET \
   "patient_ids": ["patient1", "patient2", "patient3"],
   "timestamp": "2024-01-01T12:00:00Z",
   "include_parameters": false,
-  "scoring_systems": "SOFA,qSOFA"
+  "scoring_systems": "SOFA,qSOFA,NEWS2"
 }
 ```
 
@@ -1256,7 +1293,7 @@ curl -X GET \
 - `patient_ids` (array, required) - List of FHIR Patient resource IDs (1-50 patients max)
 - `timestamp` (datetime, optional) - Target timestamp for all assessments
 - `include_parameters` (boolean, optional) - Include detailed parameters for all patients. Default: false
-- `scoring_systems` (string, optional) - Scoring systems to calculate. Default: "SOFA,qSOFA"
+- `scoring_systems` (string, optional) - Scoring systems to calculate. Default: "SOFA,qSOFA,NEWS2"
 
 **Response:**
 - **Success:** 200 OK
@@ -1284,6 +1321,35 @@ curl -X GET \
             "HIGH: Significant mortality risk",
             "Severe respiratory dysfunction",
             "Severe cardiovascular dysfunction"
+          ]
+        },
+        "qsofa_score": {
+          "total_score": 2,
+          "high_risk": true,
+          "individual_scores": {
+            "respiratory_rate": 1,
+            "systolic_bp": 1,
+            "gcs": 0
+          },
+          "clinical_alerts": [
+            "HIGH: qSOFA ≥2 - 10-fold increased mortality risk"
+          ]
+        },
+        "news2_score": {
+          "total_score": 8,
+          "risk_level": "HIGH",
+          "clinical_response": "Emergency assessment",
+          "individual_scores": {
+            "respiratory_rate": 2,
+            "oxygen_saturation": 1,
+            "supplemental_oxygen": 2,
+            "temperature": 0,
+            "systolic_bp": 2,
+            "heart_rate": 1,
+            "consciousness": 0
+          },
+          "clinical_alerts": [
+            "HIGH: Clinical deterioration detected (score ≥7)"
           ]
         },
         "sepsis_assessment": {
@@ -1327,18 +1393,20 @@ curl -X POST \
 ```
 
 **Features:**
-- **Concurrent Processing:** Calculates scores for multiple patients in parallel
+- **Concurrent Processing:** Calculates SOFA, qSOFA, and NEWS2 scores for multiple patients in parallel
 - **Error Resilience:** Individual patient errors don't prevent other calculations
-- **High-Risk Identification:** Automatically identifies patients requiring immediate attention
-- **Population Monitoring:** Suitable for ICU dashboards and population health monitoring
-- **Batch Optimization:** Efficient FHIR data retrieval and processing
+- **High-Risk Identification:** Automatically identifies patients requiring immediate attention across all scoring systems
+- **Population Monitoring:** Suitable for ICU dashboards, clinical deterioration monitoring, and population health monitoring
+- **Batch Optimization:** Efficient FHIR data retrieval and processing with NEWS2 data reuse optimization
+- **Triple Assessment:** Comprehensive evaluation using three complementary scoring systems
 
 **Notes:**
 - Maximum 50 patients per batch request
 - Processing time scales linearly with patient count
 - Failed individual calculations are returned in errors array
 - Success and error counts provided for monitoring
-- High-risk patients flagged for priority attention
+- High-risk patients flagged for priority attention based on any elevated scoring system
+- NEWS2 data reuse optimization reduces API calls by ~85% when combined with SOFA/qSOFA calculations
 
 ---
 
