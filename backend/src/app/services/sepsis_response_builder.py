@@ -14,6 +14,7 @@ from app.models.sofa import (
     SepsisAssessmentResponse, SofaScoreSummary, SepsisRiskLevel, 
     CalculationMetadata, SofaScoreResult, SofaParameters
 )
+from app.models.qsofa import QsofaScoreResult, QsofaParameters, QsofaScoreSummary
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,10 @@ class SepsisResponseBuilder:
     @staticmethod
     def build_assessment_response(
         patient_id: str,
-        sofa_result: SofaScoreResult,
+        sofa_result: Optional[SofaScoreResult] = None,
+        qsofa_result: Optional[QsofaScoreResult] = None,
         detailed_parameters: Optional[SofaParameters] = None,
+        detailed_qsofa_parameters: Optional[QsofaParameters] = None,
         timestamp: Optional[datetime] = None,
         processing_time_ms: Optional[float] = None,
         include_parameters: bool = False
@@ -35,8 +38,10 @@ class SepsisResponseBuilder:
         
         Args:
             patient_id: Patient FHIR ID
-            sofa_result: Calculated SOFA score result
-            detailed_parameters: Optional detailed parameter data
+            sofa_result: Optional calculated SOFA score result
+            qsofa_result: Optional calculated qSOFA score result
+            detailed_parameters: Optional detailed SOFA parameter data
+            detailed_qsofa_parameters: Optional detailed qSOFA parameter data
             timestamp: Target timestamp for assessment
             processing_time_ms: Processing time in milliseconds
             include_parameters: Whether to include detailed parameters
@@ -45,16 +50,39 @@ class SepsisResponseBuilder:
             Complete sepsis assessment response
         """
         # Create response models
-        sofa_summary = SofaScoreSummary.from_sofa_result(sofa_result)
-        sepsis_risk = SepsisRiskLevel.from_sofa_score(sofa_result)
+        sofa_summary = None
+        qsofa_summary = None
+        
+        if sofa_result:
+            sofa_summary = SofaScoreSummary.from_sofa_result(sofa_result)
+        
+        if qsofa_result:
+            qsofa_summary = QsofaScoreSummary.from_result(qsofa_result)
+        
+        # Determine overall sepsis risk from available scores
+        sepsis_risk = SepsisRiskLevel.from_scores(sofa_result, qsofa_result)
         
         # Determine last parameter update time
-        last_update = SepsisResponseBuilder._get_last_parameter_update(detailed_parameters)
+        last_update = SepsisResponseBuilder._get_last_parameter_update(
+            detailed_parameters, detailed_qsofa_parameters
+        )
+        
+        # Calculate combined metadata
+        estimated_count = 0
+        missing_params = []
+        
+        if sofa_result:
+            estimated_count += sofa_result.estimated_parameters_count
+            missing_params.extend(sofa_result.missing_parameters)
+        
+        if qsofa_result:
+            estimated_count += qsofa_result.estimated_parameters_count
+            missing_params.extend(qsofa_result.missing_parameters)
         
         # Create calculation metadata
         metadata = CalculationMetadata(
-            estimated_parameters=sofa_result.estimated_parameters_count,
-            missing_parameters=sofa_result.missing_parameters,
+            estimated_parameters=estimated_count,
+            missing_parameters=list(set(missing_params)),  # Remove duplicates
             calculation_time_ms=processing_time_ms,
             data_sources=["FHIR"],
             last_parameter_update=last_update
@@ -65,13 +93,23 @@ class SepsisResponseBuilder:
             patient_id=patient_id,
             timestamp=timestamp or datetime.now(),
             sofa_score=sofa_summary,
+            qsofa_score=qsofa_summary,
             sepsis_assessment=sepsis_risk,
             detailed_parameters=detailed_parameters if include_parameters else None,
+            detailed_qsofa_parameters=detailed_qsofa_parameters if include_parameters else None,
             full_sofa_result=sofa_result if include_parameters else None,
             calculation_metadata=metadata
         )
         
-        logger.debug(f"Built assessment response: SOFA {sofa_result.total_score}/24, Risk: {sepsis_risk.risk_level}")
+        # Log assessment response
+        score_parts = []
+        if sofa_result:
+            score_parts.append(f"SOFA {sofa_result.total_score}/24")
+        if qsofa_result:
+            score_parts.append(f"qSOFA {qsofa_result.total_score}/3")
+        score_info = ", ".join(score_parts) if score_parts else "No scores"
+        
+        logger.debug(f"Built assessment response: {score_info}, Risk: {sepsis_risk.risk_level}")
         return response
     
     @staticmethod
@@ -110,33 +148,48 @@ class SepsisResponseBuilder:
         }
     
     @staticmethod
-    def _get_last_parameter_update(detailed_parameters: Optional[SofaParameters]) -> Optional[datetime]:
+    def _get_last_parameter_update(
+        detailed_parameters: Optional[SofaParameters] = None,
+        detailed_qsofa_parameters: Optional[QsofaParameters] = None
+    ) -> Optional[datetime]:
         """
         Determine the last parameter update time from detailed parameters
         
         Args:
             detailed_parameters: Optional SOFA parameters object
+            detailed_qsofa_parameters: Optional qSOFA parameters object
         
         Returns:
             Most recent parameter timestamp or None
         """
-        if not detailed_parameters:
-            return None
-        
         timestamps = []
-        # Check key parameters for timestamps
-        key_parameters = [
-            detailed_parameters.platelets,
-            detailed_parameters.bilirubin,
-            detailed_parameters.gcs,
-            detailed_parameters.creatinine,
-            detailed_parameters.pao2_fio2_ratio,
-            detailed_parameters.map_value
-        ]
         
-        for param in key_parameters:
-            if param and param.timestamp:
-                timestamps.append(param.timestamp)
+        # Check SOFA parameters for timestamps
+        if detailed_parameters:
+            sofa_key_parameters = [
+                detailed_parameters.platelets,
+                detailed_parameters.bilirubin,
+                detailed_parameters.gcs,
+                detailed_parameters.creatinine,
+                detailed_parameters.pao2_fio2_ratio,
+                detailed_parameters.map_value
+            ]
+            
+            for param in sofa_key_parameters:
+                if param and param.timestamp:
+                    timestamps.append(param.timestamp)
+        
+        # Check qSOFA parameters for timestamps
+        if detailed_qsofa_parameters:
+            qsofa_key_parameters = [
+                detailed_qsofa_parameters.respiratory_rate,
+                detailed_qsofa_parameters.systolic_bp,
+                detailed_qsofa_parameters.gcs
+            ]
+            
+            for param in qsofa_key_parameters:
+                if param and param.timestamp:
+                    timestamps.append(param.timestamp)
         
         return max(timestamps) if timestamps else None
 

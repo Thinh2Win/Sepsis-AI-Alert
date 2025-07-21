@@ -1089,11 +1089,31 @@ FHIR Bundle pagination is handled automatically by the service. Large result set
 
 ---
 
-## SOFA Sepsis Scoring Endpoints
+## Sepsis Scoring Endpoints
+
+### Scoring Systems Overview
+
+The Sepsis AI Alert System supports two complementary sepsis scoring systems:
+
+#### SOFA (Sequential Organ Failure Assessment)
+- **Purpose:** Comprehensive organ dysfunction assessment for ICU patients
+- **Score Range:** 0-24 points across 6 organ systems
+- **Organ Systems:** Respiratory, Coagulation, Liver, Cardiovascular, CNS, Renal
+- **Data Window:** 24-hour lookback for comprehensive assessment
+- **Use Case:** Detailed mortality risk prediction and treatment monitoring
+
+#### qSOFA (Quick SOFA)
+- **Purpose:** Rapid bedside sepsis screening for non-ICU settings
+- **Score Range:** 0-3 points based on 3 simple criteria
+- **Parameters:** Respiratory rate ≥22, Systolic BP ≤100, GCS <15
+- **Data Window:** 4-hour lookback for rapid assessment
+- **Use Case:** Early identification of patients at risk for poor outcomes
+
+Both scoring systems are calculated by default to provide comprehensive sepsis assessment.
 
 ### Calculate Individual Patient Sepsis Score
 
-**Purpose:** Calculate SOFA (Sequential Organ Failure Assessment) score for sepsis risk assessment using comprehensive clinical data from FHIR.
+**Purpose:** Calculate SOFA (Sequential Organ Failure Assessment) and qSOFA (Quick SOFA) scores for sepsis risk assessment using comprehensive clinical data from FHIR.
 
 **HTTP Method & URL:** `GET /patients/{patient_id}/sepsis-score`
 
@@ -1103,7 +1123,7 @@ FHIR Bundle pagination is handled automatically by the service. Large result set
 **Query Parameters:**
 - `timestamp` (datetime, optional) - Target timestamp for assessment (ISO format: YYYY-MM-DDTHH:MM:SS). Defaults to current time.
 - `include_parameters` (boolean, optional) - Include detailed parameter data in response. Default: false
-- `scoring_systems` (string, optional) - Comma-separated scoring systems. Currently supports: "SOFA". Default: "SOFA"
+- `scoring_systems` (string, optional) - Comma-separated scoring systems. Supports: "SOFA", "qSOFA", or "SOFA,qSOFA". Default: "SOFA,qSOFA"
 
 **Headers:**
 - `Authorization: Bearer <token>` (required)
@@ -1136,19 +1156,31 @@ FHIR Bundle pagination is handled automatically by the service. Large result set
       ],
       "data_reliability": 0.85
     },
+    "qsofa_score": {
+      "total_score": 2,
+      "risk_level": "HIGH",
+      "high_risk": true,
+      "clinical_interpretation": "High risk for poor outcome. Consider sepsis evaluation and management.",
+      "data_reliability_score": 0.67,
+      "respiratory_rate_elevated": true,
+      "hypotension_present": false,
+      "altered_mental_status_present": true
+    },
     "sepsis_assessment": {
-      "risk_level": "MODERATE",
-      "recommendation": "Close monitoring and consider treatment escalation",
-      "requires_immediate_attention": false,
+      "risk_level": "HIGH",
+      "recommendation": "Consider immediate sepsis evaluation and ICU consultation",
+      "requires_immediate_attention": true,
       "contributing_factors": [
-        "Severe cardiovascular dysfunction",
-        "Limited data availability"
+        "High qSOFA score (≥2)",
+        "Moderate SOFA score",
+        "Respiratory rate elevation",
+        "Altered mental status"
       ]
     },
     "detailed_parameters": null,
     "calculation_metadata": {
-      "estimated_parameters": 2,
-      "missing_parameters": ["pao2_fio2_ratio", "urine_output_24h"],
+      "estimated_parameters": 3,
+      "missing_parameters": ["pao2_fio2_ratio", "urine_output_24h", "systolic_bp"],
       "calculation_time_ms": 245.8,
       "data_sources": ["FHIR"],
       "last_parameter_update": "2024-01-01T11:45:00Z"
@@ -1174,24 +1206,30 @@ curl -X GET \
 
 **Clinical Features:**
 - **SOFA Score Range:** 0-24 (higher scores indicate greater organ dysfunction)
-- **Organ Systems Assessed:** Respiratory, Coagulation, Liver, Cardiovascular, CNS, Renal
+- **qSOFA Score Range:** 0-3 (≥2 indicates high risk for poor outcomes)
+- **SOFA Organ Systems:** Respiratory, Coagulation, Liver, Cardiovascular, CNS, Renal
+- **qSOFA Parameters:** Respiratory rate ≥22, Systolic BP ≤100, GCS <15
 - **Risk Stratification:** MINIMAL → LOW → MODERATE → HIGH → CRITICAL
-- **Mortality Risk:** Correlates with total SOFA score (0-6: <10%, >15: >80%)
+- **SOFA Mortality Risk:** Correlates with total score (0-6: <10%, >15: >80%)
+- **qSOFA High Risk:** Score ≥2 indicates 10-fold increased risk of in-hospital mortality
 - **Clinical Alerts:** Automated alerts for high-risk conditions and severe organ dysfunction
 - **Data Quality:** Reliability scoring and estimation handling for missing parameters
 
 **Notes:**
-- Uses most recent clinical data within 24-hour window for each parameter
+- SOFA uses most recent clinical data within 24-hour window for each parameter
+- qSOFA uses most recent clinical data within 4-hour window for rapid assessment
 - Handles missing data through clinical estimation and default values
-- Includes vasopressor requirements for cardiovascular assessment
-- Provides clinical recommendations based on risk level
+- SOFA includes vasopressor requirements for cardiovascular assessment
+- qSOFA provides rapid bedside screening using basic vital signs and mental status
+- Provides clinical recommendations based on combined risk assessment
 - Supports real-time sepsis monitoring and alerting
+- Both scores calculated by default for comprehensive assessment
 
 ---
 
 ### Calculate Batch Patient Sepsis Scores
 
-**Purpose:** Calculate SOFA scores for multiple patients simultaneously for population monitoring and dashboard integration.
+**Purpose:** Calculate SOFA and qSOFA scores for multiple patients simultaneously for population monitoring and dashboard integration.
 
 **HTTP Method & URL:** `POST /patients/batch-sepsis-scores`
 
@@ -1210,7 +1248,7 @@ curl -X GET \
   "patient_ids": ["patient1", "patient2", "patient3"],
   "timestamp": "2024-01-01T12:00:00Z",
   "include_parameters": false,
-  "scoring_systems": "SOFA"
+  "scoring_systems": "SOFA,qSOFA"
 }
 ```
 
@@ -1218,7 +1256,7 @@ curl -X GET \
 - `patient_ids` (array, required) - List of FHIR Patient resource IDs (1-50 patients max)
 - `timestamp` (datetime, optional) - Target timestamp for all assessments
 - `include_parameters` (boolean, optional) - Include detailed parameters for all patients. Default: false
-- `scoring_systems` (string, optional) - Scoring systems to calculate. Default: "SOFA"
+- `scoring_systems` (string, optional) - Scoring systems to calculate. Default: "SOFA,qSOFA"
 
 **Response:**
 - **Success:** 200 OK

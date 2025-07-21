@@ -45,18 +45,20 @@ For manual activation (if needed):
 - **vitals.py**: Vital signs with clinical interpretation and sepsis scoring
 - **labs.py**: Laboratory results organized by category with organ dysfunction assessment
 - **clinical.py**: Clinical context (encounters, conditions, medications, fluid balance)
+- **sofa.py**: SOFA scoring models with comprehensive organ dysfunction assessment
+- **qsofa.py**: qSOFA scoring models with rapid bedside sepsis screening
 
 ##### Routers (`app/routers/`)
 - **patients.py**: Patient demographics and matching endpoints
 - **vitals.py**: Vital signs endpoints with time-series and latest data
 - **labs.py**: Laboratory results endpoints with critical value filtering
 - **clinical.py**: Clinical context endpoints (encounters, conditions, medications, fluid balance)
-- **sepsis_scoring.py**: SOFA sepsis scoring endpoints with risk assessment and batch processing
+- **sepsis_scoring.py**: SOFA and qSOFA sepsis scoring endpoints with risk assessment and batch processing
 
 ##### Services (`app/services/`)
 - **auth_client.py**: Enhanced OAuth2 JWT authentication with proper error handling
 - **fhir_client.py**: Comprehensive FHIR R4 client with retry logic, pagination, and data processing
-- **sepsis_scoring_service.py**: Business logic for SOFA scoring calculations and risk assessment
+- **sepsis_scoring_service.py**: Business logic for SOFA and qSOFA scoring calculations and risk assessment
 - **sepsis_response_builder.py**: Centralized response building for sepsis assessments
 
 ##### Utils (`app/utils/`)
@@ -64,6 +66,8 @@ For manual activation (if needed):
 - **date_utils.py**: FHIR datetime parsing, validation, and time-based calculations
 - **fhir_utils.py**: FHIR bundle processing, observation extraction, and data transformation
 - **sofa_scoring.py**: SOFA score calculation algorithms and clinical assessment logic
+- **qsofa_scoring.py**: qSOFA score calculation algorithms for rapid sepsis screening
+- **scoring_utils.py**: Shared scoring utilities implementing DRY/KISS principles
 - **error_handling.py**: Standardized error handling decorators and validation utilities
 
 ### Key Dependencies
@@ -205,12 +209,17 @@ Urine output
 - [x] **Vital Signs Models**: Time-series data with clinical interpretation and sepsis scoring
 - [x] **Laboratory Models**: Organized by category with organ dysfunction assessment
 - [x] **Clinical Models**: Encounters, conditions, medications, fluid balance
+- [x] **SOFA Models**: Comprehensive organ dysfunction assessment with 6-system scoring
+- [x] **qSOFA Models**: Rapid bedside sepsis screening with 3-parameter assessment
 
 #### Utility Functions
 - [x] **Clinical Calculations**: Age, BMI, blood pressure, fever detection
 - [x] **Date Utilities**: FHIR datetime parsing, validation, time calculations
 - [x] **FHIR Utilities**: Bundle processing, observation extraction, data transformation
 - [x] **LOINC Code Mappings**: Comprehensive mapping for all clinical categories
+- [x] **SOFA Scoring**: Complete 6-organ system assessment algorithms
+- [x] **qSOFA Scoring**: Rapid 3-parameter sepsis screening algorithms
+- [x] **Shared Scoring Utilities**: DRY/KISS compliant common functions for both scoring systems
 
 #### API Endpoints (Structure Ready)
 - [x] **Patient Demographics**: `/api/v1/sepsis-alert/patients/{patient_id}`
@@ -218,40 +227,83 @@ Urine output
 - [x] **Vital Signs**: `/api/v1/sepsis-alert/patients/{patient_id}/vitals`
 - [x] **Laboratory Results**: `/api/v1/sepsis-alert/patients/{patient_id}/labs`
 - [x] **Clinical Context**: `/api/v1/sepsis-alert/patients/{patient_id}/encounter`
-- [x] **SOFA Sepsis Scoring**: `/api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`
+- [x] **SOFA & qSOFA Sepsis Scoring**: `/api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`
 - [x] **Batch Sepsis Scoring**: `/api/v1/sepsis-alert/patients/batch-sepsis-scores`
 
-#### SOFA Scoring Implementation
+#### Sepsis Scoring Implementation
 - [x] **SOFA Score Calculation**: Complete 6-organ system assessment (respiratory, coagulation, liver, cardiovascular, CNS, renal)
-- [x] **Risk Stratification**: Mortality risk assessment with clinical recommendations
-- [x] **Data Quality Tracking**: Missing parameter detection and reliability scoring
+- [x] **qSOFA Score Calculation**: Rapid 3-parameter assessment (respiratory rate, systolic BP, GCS)
+- [x] **Combined Risk Stratification**: Dual scoring system with mortality risk assessment and clinical recommendations
+- [x] **Data Quality Tracking**: Missing parameter detection and reliability scoring for both systems
 - [x] **Clinical Alerts**: Severity-based alerting with organ dysfunction detection
-- [x] **Batch Processing**: Multi-patient scoring with error handling
-- [x] **Configuration Management**: Centralized constants and thresholds
+- [x] **Batch Processing**: Multi-patient scoring with error handling for both SOFA and qSOFA
+- [x] **Configuration Management**: Centralized constants and thresholds for both scoring systems
+- [x] **DRY/KISS Refactoring**: Shared utilities to eliminate code duplication between scoring systems
 
 ### 🔄 In Progress
 
 #### Enhanced Features
-- [ ] **Trend Analysis**: Historical SOFA score tracking and deterioration detection
-- [ ] **qSOFA Integration**: Quick SOFA implementation for non-ICU screening
+- [ ] **Trend Analysis**: Historical SOFA and qSOFA score tracking and deterioration detection
+- [x] **qSOFA Integration**: Quick SOFA implementation for non-ICU screening
 - [ ] **NEWS2 Integration**: National Early Warning Score implementation
 
 ### 📋 Next Steps
 
 1. **Complete FHIR Client Data Processing**
-   - Implement `_process_vitals()` method
-   - Implement `_process_labs()` method
-   - Implement `_process_clinical()` methods
+   - [x] Implement `_process_vitals()` method
+   - [x] Implement `_process_labs()` method
+   - [x] Implement `_process_clinical()` methods
 
 2. **Testing & Validation**
-   - Test with Epic FHIR R4 sandbox
-   - Validate data processing accuracy
-   - Test authentication and retry logic
+   - [ ] Test with Epic FHIR R4 sandbox
+   - [ ] Validate data processing accuracy
+   - [ ] Test authentication and retry logic
 
 3. **Clinical Scoring Implementation**
-   - Implement SIRS, qSOFA, SOFA scoring
-   - Add alerting logic
-   - Create clinical summary endpoints
+   - [x] Implement qSOFA and SOFA scoring
+   - [x] Add alerting logic
+   - [x] Create clinical summary endpoints
+
+4. **Enhanced Scoring Features**
+   - [ ] Implement NEWS2 scoring system
+   - [ ] Add trend analysis for historical scoring
+   - [ ] Create real-time alerting dashboard
+
+## qSOFA Implementation Details
+
+### qSOFA Scoring System Overview
+The qSOFA (Quick SOFA) scoring system has been implemented as a complementary rapid sepsis screening tool alongside the comprehensive SOFA scoring system.
+
+#### Clinical Purpose
+- **Primary Use**: Rapid bedside sepsis screening for non-ICU settings
+- **Target Population**: Patients outside of ICU who may be at risk for sepsis
+- **Speed**: 4-hour data window for rapid assessment vs 24-hour for SOFA
+- **Simplicity**: Only 3 parameters vs 24 parameters for SOFA
+
+#### Scoring Parameters
+1. **Respiratory Rate** ≥22 breaths/min (1 point)
+2. **Systolic Blood Pressure** ≤100 mmHg (1 point)  
+3. **Glasgow Coma Scale** <15 (altered mental status) (1 point)
+
+#### Risk Interpretation
+- **Score 0-1**: Low risk for poor outcomes
+- **Score ≥2**: High risk - 10-fold increased risk of in-hospital mortality
+- **Clinical Action**: Score ≥2 triggers sepsis evaluation recommendations
+
+#### Implementation Architecture
+- **Models**: `app/models/qsofa.py` - Complete qSOFA data models
+- **Scoring Logic**: `app/utils/qsofa_scoring.py` - Calculation algorithms
+- **Constants**: `app/core/qsofa_constants.py` - Configuration and thresholds
+- **Shared Utilities**: `app/utils/scoring_utils.py` - DRY/KISS compliant common functions
+- **Service Integration**: Both SOFA and qSOFA calculated by default
+
+#### Key Features
+- **Rapid Assessment**: 4-hour lookback window for quick clinical decisions
+- **Fallback Handling**: Robust error handling with default values (RR: 16, SBP: 120, GCS: 15)
+- **Data Quality**: Reliability scoring and missing parameter tracking
+- **Clinical Alerts**: Automated high-risk identification for scores ≥2
+- **Batch Processing**: Multi-patient scoring for population monitoring
+- **DRY/KISS Compliance**: Shared utilities eliminate code duplication with SOFA
 
 ### Epic FHIR Endpoints/FastAPI to EPIC FHIR R4 Endpoint Mapping (Reference)
 1. Patient Demographics Endpoints
