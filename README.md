@@ -373,26 +373,6 @@ Sepsis-AI-Alert/
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-### Running Tests
-
-The project includes a comprehensive test suite using pytest:
-
-```bash
-# Run all tests
-pytest
-
-# Run tests with coverage
-pytest --cov=app
-
-# Run specific test files
-pytest backend/src/tests/test_endpoints/test_patients.py
-
-# Run tests with verbose output
-pytest -v
-
-# Run tests and generate HTML coverage report
-pytest --cov=app --cov-report=html
-```
 
 ### Testing the API
 
@@ -403,7 +383,6 @@ pytest --cov=app --cov-report=html
 
 2. **API Documentation**
    - Swagger UI: `http://localhost:8000/api/docs`
-   - ReDoc: `http://localhost:8000/redoc`
 
 3. **Sample API Calls** (with Epic FHIR sandbox)
    ```bash
@@ -437,29 +416,6 @@ pytest --cov=app --cov-report=html
      -H "Accept: application/json"
    ```
 
-### Development Setup
-
-For development with auto-reload and debugging:
-
-```bash
-# Recommended: Use the automated startup script
-python start_server.py
-
-# Alternative: Manual development setup
-# First activate virtual environment:
-# Windows: venv\Scripts\activate
-# Unix/macOS: source venv/bin/activate
-
-# Install development dependencies (if any)
-pip install -r requirements-dev.txt  # if exists
-
-# Run with debug mode and auto-reload
-cd backend/src
-uvicorn app.main:app --reload --debug --host 0.0.0.0 --port 8000
-
-# Run tests in watch mode (requires pytest-watch)
-ptw backend/src/tests/
-```
 
 ---
 
