@@ -150,7 +150,7 @@ async def handle_missing_sofa_data(
                 param_obj.value = last_value
                 param_obj.source = "last_known"
                 param_obj.last_known_value = last_value
-                logger.debug(f"Used last known value for {param_name}: {last_value}")
+                logger.debug(f"Used last known value for {param_name}: [CLINICAL_DATA]")
             else:
                 # Use default value
                 default_value = SOFA_DEFAULTS.get(param_name)
@@ -158,7 +158,7 @@ async def handle_missing_sofa_data(
                     param_obj.value = default_value
                     param_obj.is_estimated = True
                     param_obj.source = "default"
-                    logger.debug(f"Used default value for {param_name}: {default_value}")
+                    logger.debug(f"Used default value for {param_name}: [CLINICAL_DATA]")
     
     # Special handling for MAP calculation
     if parameters.map_value.value is None and parameters.systolic_bp.value and parameters.diastolic_bp.value:
@@ -169,7 +169,7 @@ async def handle_missing_sofa_data(
         if calculated_map:
             parameters.map_value.value = calculated_map
             parameters.map_value.source = "calculated"
-            logger.debug(f"Calculated MAP from BP: {calculated_map}")
+            logger.debug("Calculated MAP from blood pressure readings")
     
     # Calculate PaO2/FiO2 ratio if missing but components available
     if (parameters.pao2_fio2_ratio.value is None and 
@@ -177,7 +177,7 @@ async def handle_missing_sofa_data(
         ratio = parameters.pao2.value / parameters.fio2.value
         parameters.pao2_fio2_ratio.value = ratio
         parameters.pao2_fio2_ratio.source = "calculated"
-        logger.debug(f"Calculated PaO2/FiO2 ratio: {ratio}")
+        logger.debug("Calculated PaO2/FiO2 ratio from gas measurements")
     
     return parameters
 

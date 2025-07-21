@@ -10,7 +10,19 @@ from app.core.config import settings
 from app.core.middleware import RequestLoggingMiddleware
 from app.core.exceptions import FHIRException, AuthenticationException
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging with selective levels for HIPAA compliance
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Set selective log levels to reduce noise and protect PHI
+logging.getLogger('app.services.fhir_client').setLevel(logging.WARNING)  # Reduce FHIR noise
+logging.getLogger('app.utils.scoring_utils').setLevel(logging.WARNING)   # Protect clinical data
+logging.getLogger('app.utils.qsofa_scoring').setLevel(logging.WARNING)   # Protect clinical data  
+logging.getLogger('app.utils.sofa_scoring').setLevel(logging.WARNING)    # Protect clinical data
+logging.getLogger('app.utils.news2_scoring').setLevel(logging.WARNING)   # Protect clinical data
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(

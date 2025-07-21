@@ -64,7 +64,7 @@ class FHIRClient:
             )
             
             response_time = time.time() - start_time
-            logger.info(f"FHIR Response: {response.status_code} ({response_time:.2f}s)")
+            logger.debug(f"FHIR Response: {response.status_code} ({response_time:.2f}s)")
             
             if response.status_code == 401:
                 logger.warning("Authentication failed, attempting token refresh")
@@ -79,7 +79,7 @@ class FHIRClient:
                     timeout=settings.fhir_timeout
                 )
                 response_time = time.time() - start_time
-                logger.info(f"FHIR Response after token refresh: {response.status_code} ({response_time:.2f}s)")
+                logger.debug(f"FHIR Response after token refresh: {response.status_code} ({response_time:.2f}s)")
             
             if not response.ok:
                 error_msg = f"FHIR request failed: {response.status_code}"
@@ -108,11 +108,11 @@ class FHIRClient:
             # Log response summary without PHI
             if isinstance(response_data, dict):
                 if 'resourceType' in response_data:
-                    logger.info(f"Resource type: {response_data['resourceType']}")
+                    logger.debug(f"Resource type: {response_data['resourceType']}")
                 if 'total' in response_data:
-                    logger.info(f"Total results: {response_data['total']}")
+                    logger.debug(f"Total results: {response_data['total']}")
                 if 'entry' in response_data:
-                    logger.info(f"Entries count: {len(response_data['entry'])}")
+                    logger.debug(f"Entries count: {len(response_data['entry'])}")
             
             return response_data
             
@@ -178,7 +178,7 @@ class FHIRClient:
                         elif obs.get("loinc_code") == "29463-7":  # Weight
                             weight_kg = convert_weight_to_kg(obs.get("value"), obs.get("unit", ""))
             except Exception as demo_error:
-                logger.warning(f"Error fetching demographics observations for patient {patient_id}: {str(demo_error)}")
+                logger.warning(f"Error fetching demographics observations for patient [REDACTED]: {str(demo_error)}")
             
             # 3. Extract primary name and phone
             primary_name = self._extract_primary_name(demographics.get("names", []))
@@ -204,7 +204,7 @@ class FHIRClient:
             )
             
         except Exception as e:
-            logger.error(f"Error getting patient {patient_id}: {str(e)}")
+            logger.error(f"Error getting patient [REDACTED]: {str(e)}")
             raise FHIRException(500, f"Failed to retrieve patient data: {str(e)}")
 
     async def match_patient(self, match_request: PatientMatchRequest) -> PatientMatchResponse:
@@ -296,7 +296,7 @@ class FHIRClient:
             )
             
         except Exception as e:
-            logger.error(f"Error getting vitals for patient {patient_id}: {str(e)}")
+            logger.error(f"Error getting vitals for patient [REDACTED]: {str(e)}")
             raise FHIRException(500, f"Failed to retrieve vital signs: {str(e)}")
 
     async def get_latest_vitals(self, patient_id: str) -> VitalSignsLatestResponse:
@@ -333,7 +333,7 @@ class FHIRClient:
             )
             
         except Exception as e:
-            logger.error(f"Error getting latest vitals for patient {patient_id}: {str(e)}")
+            logger.error(f"Error getting latest vitals for patient [REDACTED]: {str(e)}")
             raise FHIRException(500, f"Failed to retrieve latest vital signs: {str(e)}")
 
     async def get_labs(self, patient_id: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, lab_category: Optional[str] = None) -> LabResultsResponse:
@@ -448,7 +448,7 @@ class FHIRClient:
             )
             
         except Exception as e:
-            logger.error(f"Error getting critical labs for patient {patient_id}: {str(e)}")
+            logger.error(f"Error getting critical labs for patient [REDACTED]: {str(e)}")
             raise FHIRException(500, f"Failed to retrieve critical laboratory values: {str(e)}")
 
     async def get_encounter(self, patient_id: str) -> EncounterResponse:
