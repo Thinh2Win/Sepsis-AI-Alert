@@ -137,10 +137,15 @@ async def collect_news2_parameters(
     Returns:
         Complete NEWS2 parameters with reused data where possible
     """
-    logger.debug(f"Collecting NEWS2 parameters with data reuse optimization")
-    
     if timestamp is None:
         timestamp = datetime.now()
+    
+    # Track data reuse optimization
+    sofa_available = sofa_params is not None
+    qsofa_available = qsofa_params is not None
+    
+    logger.debug(f"Collecting NEWS2 parameters with data reuse optimization")
+    logger.debug(f"Available for reuse: SOFA={sofa_available}, qSOFA={qsofa_available}")
     
     # Step 1: Reuse existing parameters from SOFA and qSOFA
     parameters = News2Parameters.from_existing_parameters(
@@ -149,6 +154,14 @@ async def collect_news2_parameters(
         qsofa_params=qsofa_params,
         timestamp=timestamp
     )
+    
+    # Count parameters successfully reused
+    reused_count = sum(1 for param in [
+        parameters.respiratory_rate, parameters.oxygen_saturation, parameters.temperature,
+        parameters.systolic_bp, parameters.heart_rate, parameters.consciousness_level
+    ] if param.source and param.source.startswith("reused"))
+    
+    logger.debug(f"Successfully reused {reused_count}/6 overlapping parameters from existing data")
     
     # Step 2: Only fetch supplemental oxygen data from FHIR (the one parameter not in SOFA/qSOFA)
     supplemental_oxygen = await collect_supplemental_oxygen_data(
@@ -168,7 +181,22 @@ async def collect_news2_parameters(
     # Step 4: Apply defaults for any still-missing parameters
     parameters = apply_news2_defaults(parameters)
     
+    # Calculate final optimization metrics
+    final_reused_count = sum(1 for param in [
+        parameters.respiratory_rate, parameters.oxygen_saturation, parameters.temperature,
+        parameters.systolic_bp, parameters.heart_rate, parameters.consciousness_level
+    ] if param.source and param.source.startswith("reused"))
+    
+    # Updated calculation: only supplemental oxygen requires new FHIR call if all vital signs reused
+    total_potential_reuse = 6  # All parameters except supplemental_oxygen
+    api_call_reduction = (final_reused_count / total_potential_reuse) * 100 if final_reused_count > 0 else 0
+    
     logger.debug(f"NEWS2 parameters collected: {len(parameters.missing_parameters)} missing/estimated")
+    logger.debug(f"Data reuse optimization: {final_reused_count}/{total_potential_reuse} parameters reused ({api_call_reduction:.1f}% API call reduction)")
+    
+    if final_reused_count == total_potential_reuse:
+        logger.info("Optimal NEWS2 data reuse achieved - only supplemental oxygen requires new FHIR call")
+    
     return parameters
 
 
@@ -195,16 +223,20 @@ async def collect_supplemental_oxygen_data(
     end_date = timestamp
     
     try:
-        # Check for oxygen-related medications
-        medication_bundle = await fhir_client._make_request(
-            "GET", "MedicationRequest",
-            params={
-                "patient": patient_id,
-                "status": "active",
-                "effective-time": f"ge{start_date.isoformat()}&effective-time=le{end_date.isoformat()}",
-                "_count": "10"
-            }
-        )
+        # Try to check for oxygen-related medications (may not be available in all FHIR servers)
+        try:
+            medication_bundle = await fhir_client._make_request(
+                "GET", "MedicationRequest",
+                params={
+                    "patient": patient_id,
+                    "status": "active",
+                    "effective-time": f"ge{start_date.isoformat()}&effective-time=le{end_date.isoformat()}",
+                    "_count": "10"
+                }
+            )
+        except Exception as med_error:
+            logger.warning(f"MedicationRequest endpoint not available: {str(med_error)}")
+            medication_bundle = None
         
         # Check for oxygen in medication names
         config = NEWS2FHIRConfig.SUPPLEMENTAL_OXYGEN_PARAMETERS["supplemental_oxygen"]
@@ -220,16 +252,20 @@ async def collect_supplemental_oxygen_data(
                     logger.debug("Found supplemental oxygen in medications")
                     return True
         
-        # Check for oxygen-related procedures/devices
-        procedure_bundle = await fhir_client._make_request(
-            "GET", "Procedure",
-            params={
-                "patient": patient_id,
-                "status": "in-progress,completed",
-                "date": f"ge{start_date.isoformat()}&date=le{end_date.isoformat()}",
-                "_count": "10"
-            }
-        )
+        # Try to check for oxygen-related procedures/devices (may not be available in all FHIR servers)
+        try:
+            procedure_bundle = await fhir_client._make_request(
+                "GET", "Procedure",
+                params={
+                    "patient": patient_id,
+                    "status": "in-progress,completed",
+                    "date": f"ge{start_date.isoformat()}&date=le{end_date.isoformat()}",
+                    "_count": "10"
+                }
+            )
+        except Exception as proc_error:
+            logger.warning(f"Procedure endpoint not available: {str(proc_error)}")
+            procedure_bundle = None
         
         if procedure_bundle and "entry" in procedure_bundle:
             for entry in procedure_bundle["entry"]:
@@ -249,7 +285,8 @@ async def collect_supplemental_oxygen_data(
         
     except Exception as e:
         logger.warning(f"Error checking supplemental oxygen status: {str(e)}")
-        # Default to room air if unable to determine
+        logger.info("Defaulting to room air (no supplemental oxygen) for NEWS2 scoring")
+        # Default to room air if unable to determine - this allows scoring to continue
         return False
 
 
@@ -266,8 +303,6 @@ async def fill_missing_parameters(
         fhir_client: FHIR client instance
         timestamp: Target timestamp
     """
-    logger.debug("Filling missing NEWS2 parameters from FHIR")
-    
     # Calculate time window
     start_date = timestamp - timedelta(hours=NEWS2Defaults.LOOKBACK_HOURS)
     end_date = timestamp
@@ -286,6 +321,8 @@ async def fill_missing_parameters(
         missing_vital_signs["systolic_bp"] = NEWS2FHIRConfig.VITAL_SIGNS_PARAMETERS["systolic_bp"]
     if not parameters.heart_rate.is_available:
         missing_vital_signs["heart_rate"] = NEWS2FHIRConfig.VITAL_SIGNS_PARAMETERS["heart_rate"]
+    
+    logger.debug(f"Filling {len(missing_vital_signs)} missing NEWS2 parameters from FHIR: {list(missing_vital_signs.keys())}")
     
     # Collect missing vital signs
     if missing_vital_signs:

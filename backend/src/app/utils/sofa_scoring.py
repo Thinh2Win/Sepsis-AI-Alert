@@ -47,7 +47,7 @@ async def collect_sofa_parameters(
     
     try:
         # Collect all required observations concurrently using unified function
-        organ_systems = ["respiratory", "coagulation", "liver", "cardiovascular", "cns", "renal"]
+        organ_systems = ["respiratory", "coagulation", "liver", "cardiovascular", "cns", "renal", "vital_signs"]
         tasks = [
             _collect_organ_parameters(fhir_client, patient_id, start_date, end_date, organ_system)
             for organ_system in organ_systems
@@ -57,7 +57,7 @@ async def collect_sofa_parameters(
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Process results with organ system mapping
-        organ_systems = ["respiratory", "coagulation", "liver", "cardiovascular", "cns", "renal"]
+        # Note: organ_systems was already defined above with vital_signs included
         
         for i, result in enumerate(results):
             if isinstance(result, Exception):
@@ -88,7 +88,13 @@ async def collect_sofa_parameters(
                 elif organ_system == "renal":
                     sofa_params.creatinine = result.get("creatinine", SofaParameter())
                     sofa_params.urine_output_24h = result.get("urine_output_24h", SofaParameter())
-            else:  # Vasopressors (index 6)
+                elif organ_system == "vital_signs":
+                    # Additional vital signs for NEWS2 reuse optimization
+                    sofa_params.heart_rate = result.get("heart_rate", SofaParameter())
+                    sofa_params.temperature = result.get("temperature", SofaParameter()) 
+                    sofa_params.respiratory_rate = result.get("respiratory_rate", SofaParameter())
+                    sofa_params.oxygen_saturation = result.get("oxygen_saturation", SofaParameter())
+            else:  # Vasopressors (index 7 now)
                 sofa_params.vasopressor_doses = result.get("vasopressor_doses", VasopressorDoses())
         
         # Handle missing data

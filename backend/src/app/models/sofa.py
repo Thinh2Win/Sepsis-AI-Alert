@@ -69,13 +69,20 @@ class SofaParameters(BaseModel):
     creatinine: SofaParameter = Field(default_factory=SofaParameter)
     urine_output_24h: SofaParameter = Field(default_factory=SofaParameter)
     
+    # Additional vital signs for NEWS2 reuse optimization
+    heart_rate: SofaParameter = Field(default_factory=SofaParameter)
+    temperature: SofaParameter = Field(default_factory=SofaParameter)
+    respiratory_rate: SofaParameter = Field(default_factory=SofaParameter)
+    oxygen_saturation: SofaParameter = Field(default_factory=SofaParameter)
+    
     @computed_field
     @property
     def estimated_parameters_count(self) -> int:
         """Count of parameters that were estimated or defaulted"""
         parameters = [
             self.pao2_fio2_ratio, self.platelets, self.bilirubin,
-            self.map_value, self.gcs, self.creatinine, self.urine_output_24h
+            self.map_value, self.gcs, self.creatinine, self.urine_output_24h,
+            self.heart_rate, self.temperature, self.respiratory_rate, self.oxygen_saturation
         ]
         return sum(1 for param in parameters if param.is_estimated)
     
@@ -91,7 +98,11 @@ class SofaParameters(BaseModel):
             "map_value": self.map_value,
             "gcs": self.gcs,
             "creatinine": self.creatinine,
-            "urine_output_24h": self.urine_output_24h
+            "urine_output_24h": self.urine_output_24h,
+            "heart_rate": self.heart_rate,
+            "temperature": self.temperature,
+            "respiratory_rate": self.respiratory_rate,
+            "oxygen_saturation": self.oxygen_saturation
         }
         
         for name, param in parameter_mapping.items():

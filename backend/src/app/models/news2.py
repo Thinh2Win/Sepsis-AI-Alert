@@ -86,7 +86,7 @@ class News2Parameters(BaseModel):
         params = cls(patient_id=patient_id, timestamp=timestamp)
         
         # Reuse respiratory rate from qSOFA (preferred) or SOFA
-        if qsofa_params and qsofa_params.respiratory_rate.is_available:
+        if qsofa_params and hasattr(qsofa_params, 'respiratory_rate') and qsofa_params.respiratory_rate and qsofa_params.respiratory_rate.is_available:
             params.respiratory_rate = News2Parameter(
                 value=qsofa_params.respiratory_rate.value,
                 unit=qsofa_params.respiratory_rate.unit,
@@ -94,9 +94,17 @@ class News2Parameters(BaseModel):
                 is_estimated=qsofa_params.respiratory_rate.is_estimated,
                 source="reused_qsofa"
             )
+        elif sofa_params and hasattr(sofa_params, 'respiratory_rate') and sofa_params.respiratory_rate and sofa_params.respiratory_rate.is_available:
+            params.respiratory_rate = News2Parameter(
+                value=sofa_params.respiratory_rate.value,
+                unit=sofa_params.respiratory_rate.unit,
+                timestamp=sofa_params.respiratory_rate.timestamp,
+                is_estimated=sofa_params.respiratory_rate.is_estimated,
+                source="reused_sofa"
+            )
         
         # Reuse systolic BP from qSOFA (preferred) or SOFA
-        if qsofa_params and qsofa_params.systolic_bp.is_available:
+        if qsofa_params and hasattr(qsofa_params, 'systolic_bp') and qsofa_params.systolic_bp and qsofa_params.systolic_bp.is_available:
             params.systolic_bp = News2Parameter(
                 value=qsofa_params.systolic_bp.value,
                 unit=qsofa_params.systolic_bp.unit,
@@ -104,7 +112,7 @@ class News2Parameters(BaseModel):
                 is_estimated=qsofa_params.systolic_bp.is_estimated,
                 source="reused_qsofa"
             )
-        elif sofa_params and sofa_params.systolic_bp.is_available:
+        elif sofa_params and hasattr(sofa_params, 'systolic_bp') and sofa_params.systolic_bp and sofa_params.systolic_bp.is_available:
             params.systolic_bp = News2Parameter(
                 value=sofa_params.systolic_bp.value,
                 unit=sofa_params.systolic_bp.unit,
@@ -114,7 +122,7 @@ class News2Parameters(BaseModel):
             )
         
         # Reuse GCS from qSOFA (preferred) or SOFA for consciousness level
-        if qsofa_params and qsofa_params.gcs.is_available:
+        if qsofa_params and hasattr(qsofa_params, 'gcs') and qsofa_params.gcs and qsofa_params.gcs.is_available:
             params.consciousness_level = News2Parameter(
                 value=qsofa_params.gcs.value,
                 unit="points",
@@ -122,7 +130,7 @@ class News2Parameters(BaseModel):
                 is_estimated=qsofa_params.gcs.is_estimated,
                 source="reused_qsofa"
             )
-        elif sofa_params and sofa_params.gcs.is_available:
+        elif sofa_params and hasattr(sofa_params, 'gcs') and sofa_params.gcs and sofa_params.gcs.is_available:
             params.consciousness_level = News2Parameter(
                 value=sofa_params.gcs.value,
                 unit="points",
@@ -153,13 +161,23 @@ class News2Parameters(BaseModel):
                     source="reused_sofa"
                 )
             
-            # Oxygen saturation from PaO2/FiO2 calculation or direct SpO2
+            # Oxygen saturation from direct SpO2 measurement
             if hasattr(sofa_params, 'oxygen_saturation') and sofa_params.oxygen_saturation and sofa_params.oxygen_saturation.is_available:
                 params.oxygen_saturation = News2Parameter(
                     value=sofa_params.oxygen_saturation.value,
                     unit=sofa_params.oxygen_saturation.unit,
                     timestamp=sofa_params.oxygen_saturation.timestamp,
                     is_estimated=sofa_params.oxygen_saturation.is_estimated,
+                    source="reused_sofa"
+                )
+            
+            # Respiratory rate from SOFA if not already set from qSOFA
+            if not params.respiratory_rate.is_available and hasattr(sofa_params, 'respiratory_rate') and sofa_params.respiratory_rate and sofa_params.respiratory_rate.is_available:
+                params.respiratory_rate = News2Parameter(
+                    value=sofa_params.respiratory_rate.value,
+                    unit=sofa_params.respiratory_rate.unit,
+                    timestamp=sofa_params.respiratory_rate.timestamp,
+                    is_estimated=sofa_params.respiratory_rate.is_estimated,
                     source="reused_sofa"
                 )
         
