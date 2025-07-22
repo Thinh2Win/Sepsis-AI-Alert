@@ -21,6 +21,12 @@ class SofaDefaults:
     CREATININE = 1.0             # Normal creatinine (mg/dL)
     URINE_OUTPUT = 1000.0        # Normal urine output (mL/24h)
     
+    # Additional vital signs for NEWS2 reuse optimization
+    HEART_RATE = 75.0            # Normal heart rate (bpm)
+    TEMPERATURE = 37.0           # Normal temperature (°C)
+    RESPIRATORY_RATE = 16.0      # Normal respiratory rate (breaths/min)
+    OXYGEN_SATURATION = 98.0     # Normal oxygen saturation (%)
+    
     # Assumed values for calculations
     ROOM_AIR_FIO2 = 0.21         # Room air oxygen fraction
 
@@ -209,6 +215,24 @@ class SofaParameterConfigs:
             LOINCCodes.FLUID_BALANCE["urine_output_24hr"]: "urine_output_24h"
         },
         "system_name": "renal"
+    }
+    
+    # Additional vital signs for NEWS2 reuse optimization
+    VITAL_SIGNS = {
+        "codes": [
+            LOINCCodes.VITAL_SIGNS["heart_rate"],  # 8867-4
+            LOINCCodes.VITAL_SIGNS["body_temperature"],  # 8310-5
+            LOINCCodes.VITAL_SIGNS["respiratory_rate"],  # 9279-1
+            LOINCCodes.VITAL_SIGNS["oxygen_saturation"]  # 2708-6
+        ],
+        "count": 4,
+        "parameter_mapping": {
+            LOINCCodes.VITAL_SIGNS["heart_rate"]: "heart_rate",
+            LOINCCodes.VITAL_SIGNS["body_temperature"]: "temperature",
+            LOINCCodes.VITAL_SIGNS["respiratory_rate"]: "respiratory_rate",
+            LOINCCodes.VITAL_SIGNS["oxygen_saturation"]: "oxygen_saturation"
+        },
+        "system_name": "vital_signs"
     }
 
 

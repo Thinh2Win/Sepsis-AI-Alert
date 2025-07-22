@@ -25,7 +25,7 @@ async def get_sepsis_score(
     patient_id: str,
     timestamp: Optional[datetime] = Query(None, description="Target timestamp for score calculation (ISO format)"),
     include_parameters: bool = Query(False, description="Include detailed parameter data in response"),
-    scoring_systems: str = Query("SOFA,qSOFA", description="Scoring systems to calculate (SOFA, qSOFA, or SOFA,qSOFA). Both calculated by default."),
+    scoring_systems: str = Query("SOFA,qSOFA,NEWS2", description="Scoring systems to calculate (SOFA, qSOFA, NEWS2, or any combination). All three calculated by default."),
     fhir_client: FHIRClient = Depends(get_fhir_client)
 ):
     """
@@ -34,13 +34,14 @@ async def get_sepsis_score(
     **Current Implementation:**
     - SOFA (Sequential Organ Failure Assessment) score
     - qSOFA (Quick SOFA) score
+    - NEWS2 (National Early Warning Score 2)
     - Overall sepsis risk assessment with combined scores
-    - Clinical recommendations
+    - Clinical recommendations with data reuse optimization
     
     **Future Extensions:**
-    - NEWS2 (National Early Warning Score 2)
     - SIRS (Systemic Inflammatory Response Syndrome) criteria
     - Aggregated sepsis likelihood assessment
+    - Trend analysis and historical scoring
     
     **Use Cases:**
     - Real-time patient monitoring
@@ -51,15 +52,17 @@ async def get_sepsis_score(
     **Query Parameters:**
     - `timestamp`: Calculate score for specific time (defaults to current time)
     - `include_parameters`: Include detailed FHIR parameter data
-    - `scoring_systems`: Specify which systems to calculate (default: "SOFA,qSOFA" for both)
+    - `scoring_systems`: Specify which systems to calculate (default: "SOFA,qSOFA,NEWS2" for all three)
     
     **Response includes:**
     - SOFA total score (0-24) with mortality risk assessment (calculated by default)
-    - qSOFA total score (0-3) with high-risk threshold assessment (calculated by default)
+    - qSOFA total score (0-3) with high-risk threshold assessment (calculated by default) 
+    - NEWS2 total score (0-20) with clinical deterioration risk assessment (calculated by default)
     - Individual component scores for all calculated systems
     - Overall sepsis risk level (MINIMAL/LOW/MODERATE/HIGH/CRITICAL) based on combined assessment
     - Clinical alerts and recommendations based on all calculated scores
     - Data quality indicators and missing parameter information
+    - Data reuse optimization to minimize FHIR API calls
     """
     # Delegate to service layer
     service = SepsisScoringServiceFactory.create_service(fhir_client)

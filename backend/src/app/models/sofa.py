@@ -4,6 +4,7 @@ from datetime import datetime
 
 if TYPE_CHECKING:
     from app.models.qsofa import QsofaScoreSummary, QsofaParameters, QsofaScoreResult
+    from app.models.news2 import News2ScoreSummary, News2Parameters, News2ScoreResult
 
 class SofaParameter(BaseModel):
     """Individual SOFA parameter with metadata"""
@@ -68,13 +69,20 @@ class SofaParameters(BaseModel):
     creatinine: SofaParameter = Field(default_factory=SofaParameter)
     urine_output_24h: SofaParameter = Field(default_factory=SofaParameter)
     
+    # Additional vital signs for NEWS2 reuse optimization
+    heart_rate: SofaParameter = Field(default_factory=SofaParameter)
+    temperature: SofaParameter = Field(default_factory=SofaParameter)
+    respiratory_rate: SofaParameter = Field(default_factory=SofaParameter)
+    oxygen_saturation: SofaParameter = Field(default_factory=SofaParameter)
+    
     @computed_field
     @property
     def estimated_parameters_count(self) -> int:
         """Count of parameters that were estimated or defaulted"""
         parameters = [
             self.pao2_fio2_ratio, self.platelets, self.bilirubin,
-            self.map_value, self.gcs, self.creatinine, self.urine_output_24h
+            self.map_value, self.gcs, self.creatinine, self.urine_output_24h,
+            self.heart_rate, self.temperature, self.respiratory_rate, self.oxygen_saturation
         ]
         return sum(1 for param in parameters if param.is_estimated)
     
@@ -90,7 +98,11 @@ class SofaParameters(BaseModel):
             "map_value": self.map_value,
             "gcs": self.gcs,
             "creatinine": self.creatinine,
-            "urine_output_24h": self.urine_output_24h
+            "urine_output_24h": self.urine_output_24h,
+            "heart_rate": self.heart_rate,
+            "temperature": self.temperature,
+            "respiratory_rate": self.respiratory_rate,
+            "oxygen_saturation": self.oxygen_saturation
         }
         
         for name, param in parameter_mapping.items():
@@ -405,20 +417,25 @@ class SepsisRiskLevel(BaseModel):
     def from_scores(
         cls, 
         sofa_result: Optional[SofaScoreResult] = None, 
-        qsofa_result: Optional["QsofaScoreResult"] = None
+        qsofa_result: Optional["QsofaScoreResult"] = None,
+        news2_result: Optional["News2ScoreResult"] = None
     ) -> "SepsisRiskLevel":
         """Determine overall sepsis risk from available scores"""
+        # If multiple scores are available, combine them intelligently
+        if (sofa_result and qsofa_result) or (sofa_result and news2_result) or (qsofa_result and news2_result):
+            return cls._from_combined_scores(sofa_result, qsofa_result, news2_result)
+        
         # If only SOFA is available, use existing logic
-        if sofa_result and not qsofa_result:
+        if sofa_result and not qsofa_result and not news2_result:
             return cls.from_sofa_score(sofa_result)
         
         # If only qSOFA is available, base risk on qSOFA
-        if qsofa_result and not sofa_result:
+        if qsofa_result and not sofa_result and not news2_result:
             return cls._from_qsofa_score(qsofa_result)
         
-        # If both scores are available, combine them intelligently
-        if sofa_result and qsofa_result:
-            return cls._from_combined_scores(sofa_result, qsofa_result)
+        # If only NEWS2 is available, base risk on NEWS2
+        if news2_result and not sofa_result and not qsofa_result:
+            return cls._from_news2_score(news2_result)
         
         # Default case (shouldn't happen)
         return cls(
@@ -454,41 +471,116 @@ class SepsisRiskLevel(BaseModel):
             )
     
     @classmethod
+    def _from_news2_score(cls, news2_result: "News2ScoreResult") -> "SepsisRiskLevel":
+        """Determine sepsis risk from NEWS2 score only"""
+        # Map NEWS2 risk levels to sepsis risk levels
+        news2_to_sepsis_risk = {
+            "HIGH": "HIGH",
+            "MEDIUM": "MODERATE", 
+            "LOW": "LOW"
+        }
+        
+        sepsis_risk = news2_to_sepsis_risk.get(news2_result.risk_level, "LOW")
+        
+        if news2_result.risk_level == "HIGH":
+            return cls(
+                risk_level="HIGH",
+                recommendation="High risk for clinical deterioration - emergency assessment required",
+                requires_immediate_attention=True,
+                contributing_factors=[f"NEWS2 score {news2_result.total_score}/20 (≥7)"]
+            )
+        elif news2_result.risk_level == "MEDIUM":
+            return cls(
+                risk_level="MODERATE",
+                recommendation="Moderate risk for deterioration - urgent clinical review required",
+                requires_immediate_attention=True,
+                contributing_factors=[f"NEWS2 score {news2_result.total_score}/20 (5-6 or single parameter 3)"]
+            )
+        else:
+            return cls(
+                risk_level="LOW",
+                recommendation="Low risk for deterioration - continue routine monitoring",
+                requires_immediate_attention=False,
+                contributing_factors=[f"NEWS2 score {news2_result.total_score}/20 (0-4)"]
+            )
+    
+    @classmethod
     def _from_combined_scores(
         cls, 
-        sofa_result: SofaScoreResult, 
-        qsofa_result: "QsofaScoreResult"
+        sofa_result: Optional[SofaScoreResult] = None, 
+        qsofa_result: Optional["QsofaScoreResult"] = None,
+        news2_result: Optional["News2ScoreResult"] = None
     ) -> "SepsisRiskLevel":
-        """Determine sepsis risk from combined SOFA and qSOFA scores"""
-        # Get individual risk assessments
-        sofa_risk = cls.from_sofa_score(sofa_result)
-        qsofa_risk = cls._from_qsofa_score(qsofa_result)
+        """Determine sepsis risk from combined SOFA, qSOFA, and NEWS2 scores"""
+        # Get individual risk assessments for available scores
+        individual_risks = []
+        combined_factors = []
+        
+        if sofa_result:
+            sofa_risk = cls.from_sofa_score(sofa_result)
+            individual_risks.append(sofa_risk)
+            combined_factors.append(f"SOFA score {sofa_result.total_score}/24")
+        
+        if qsofa_result:
+            qsofa_risk = cls._from_qsofa_score(qsofa_result)
+            individual_risks.append(qsofa_risk)
+            combined_factors.append(f"qSOFA score {qsofa_result.total_score}/3")
+        
+        if news2_result:
+            news2_risk = cls._from_news2_score(news2_result)
+            individual_risks.append(news2_risk)
+            combined_factors.append(f"NEWS2 score {news2_result.total_score}/20")
         
         # Risk level hierarchy for comparison
         risk_hierarchy = {"MINIMAL": 0, "LOW": 1, "MODERATE": 2, "HIGH": 3, "CRITICAL": 4}
         
-        # Take the higher risk level
-        sofa_level = risk_hierarchy.get(sofa_risk.risk_level, 0)
-        qsofa_level = risk_hierarchy.get(qsofa_risk.risk_level, 0)
+        # Find the highest risk level among all available scores
+        highest_risk_level = 0
+        primary_assessment = None
         
-        if sofa_level >= qsofa_level:
-            final_risk = sofa_risk.risk_level
-            primary_recommendation = sofa_risk.recommendation
+        for risk in individual_risks:
+            risk_level = risk_hierarchy.get(risk.risk_level, 0)
+            if risk_level > highest_risk_level:
+                highest_risk_level = risk_level
+                primary_assessment = risk
+        
+        # Determine if immediate attention is required (any system indicates it)
+        requires_attention = any(risk.requires_immediate_attention for risk in individual_risks)
+        
+        # Special high-priority cases that override normal priority
+        high_priority_factors = []
+        if qsofa_result and qsofa_result.total_score >= 2:
+            high_priority_factors.append("qSOFA ≥2 (sepsis concern)")
+        if news2_result and news2_result.risk_level == "HIGH":
+            high_priority_factors.append("NEWS2 high risk (clinical deterioration)")
+        if sofa_result and sofa_result.total_score >= 10:
+            high_priority_factors.append("SOFA ≥10 (organ dysfunction)")
+        
+        # Combine all contributing factors
+        if high_priority_factors:
+            combined_factors.extend(high_priority_factors)
+        
+        # Add individual system contributing factors
+        for risk in individual_risks:
+            combined_factors.extend(risk.contributing_factors)
+        
+        # Use primary assessment or create default
+        if primary_assessment:
+            final_risk = primary_assessment.risk_level
+            primary_recommendation = primary_assessment.recommendation
         else:
-            final_risk = qsofa_risk.risk_level
-            primary_recommendation = qsofa_risk.recommendation
+            final_risk = "MINIMAL"
+            primary_recommendation = "No scoring data available"
         
-        # Combine contributing factors
-        combined_factors = []
-        combined_factors.append(f"SOFA score {sofa_result.total_score}/24")
-        combined_factors.append(f"qSOFA score {qsofa_result.total_score}/3")
-        combined_factors.extend(sofa_risk.contributing_factors)
-        
-        # Special case: qSOFA ≥2 always warrants immediate attention
-        requires_attention = (
-            sofa_risk.requires_immediate_attention or 
-            qsofa_risk.requires_immediate_attention
-        )
+        # Enhanced recommendation for combined scores
+        if len(individual_risks) > 1:
+            system_names = []
+            if sofa_result: system_names.append("SOFA")
+            if qsofa_result: system_names.append("qSOFA")  
+            if news2_result: system_names.append("NEWS2")
+            
+            combined_system_text = " + ".join(system_names)
+            primary_recommendation = f"Combined assessment ({combined_system_text}): {primary_recommendation}"
         
         return cls(
             risk_level=final_risk,
@@ -513,7 +605,7 @@ class SepsisAssessmentResponse(BaseModel):
     # Scoring systems (at least one must be provided)
     sofa_score: Optional[SofaScoreSummary] = None
     qsofa_score: Optional["QsofaScoreSummary"] = None
-    news2_score: Optional[Dict[str, Any]] = None
+    news2_score: Optional["News2ScoreSummary"] = None
     
     # Overall assessment
     sepsis_assessment: SepsisRiskLevel
@@ -521,6 +613,7 @@ class SepsisAssessmentResponse(BaseModel):
     # Optional detailed data
     detailed_parameters: Optional[SofaParameters] = None
     detailed_qsofa_parameters: Optional["QsofaParameters"] = None
+    detailed_news2_parameters: Optional["News2Parameters"] = None
     full_sofa_result: Optional[SofaScoreResult] = None
     
     # Calculation metadata
@@ -578,7 +671,8 @@ def rebuild_models():
     """Rebuild models to resolve forward references after all imports"""
     try:
         from app.models.qsofa import QsofaScoreSummary, QsofaParameters, QsofaScoreResult
+        from app.models.news2 import News2ScoreSummary, News2Parameters, News2ScoreResult
         SepsisAssessmentResponse.model_rebuild()
         SepsisRiskLevel.model_rebuild()
     except ImportError:
-        pass  # qSOFA models not available yet
+        pass  # qSOFA or NEWS2 models not available yet

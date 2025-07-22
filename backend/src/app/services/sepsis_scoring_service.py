@@ -17,12 +17,17 @@ from app.services.fhir_client import FHIRClient
 from app.services.sepsis_response_builder import SepsisResponseBuilder, ProcessingTimer
 from app.utils.sofa_scoring import calculate_total_sofa, collect_sofa_parameters
 from app.utils.qsofa_scoring import calculate_total_qsofa, collect_qsofa_parameters
+from app.utils.news2_scoring import calculate_total_news2, collect_news2_parameters
 from app.utils.error_handling import validate_patient_id, validate_scoring_systems
 
 # Ensure models are rebuilt to resolve forward references
 try:
-    from app.models.qsofa import rebuild_models
-    rebuild_models()
+    from app.models.qsofa import rebuild_models as rebuild_qsofa_models
+    rebuild_qsofa_models()
+    from app.models.news2 import rebuild_models as rebuild_news2_models
+    rebuild_news2_models()
+    from app.models.sofa import rebuild_models as rebuild_sofa_models
+    rebuild_sofa_models()
 except ImportError:
     pass
 
@@ -68,8 +73,10 @@ class SepsisScoringService:
             # Initialize results
             sofa_result = None
             qsofa_result = None
+            news2_result = None
             detailed_parameters = None
             detailed_qsofa_parameters = None
+            detailed_news2_parameters = None
             
             # Calculate SOFA score if requested
             if "SOFA" in requested_systems:
@@ -79,15 +86,14 @@ class SepsisScoringService:
                     timestamp=timestamp
                 )
                 
-                # Collect detailed SOFA parameters if requested
-                if include_parameters:
-                    detailed_parameters = await collect_sofa_parameters(
-                        patient_id=patient_id,
-                        fhir_client=self.fhir_client,
-                        timestamp=timestamp
-                    )
+                # Always collect SOFA parameters for potential reuse by NEWS2
+                detailed_parameters = await collect_sofa_parameters(
+                    patient_id=patient_id,
+                    fhir_client=self.fhir_client,
+                    timestamp=timestamp
+                )
             
-            # Calculate qSOFA score if requested
+            # Calculate qSOFA score if requested  
             if "QSOFA" in requested_systems:
                 qsofa_result = await calculate_total_qsofa(
                     patient_id=patient_id,
@@ -95,16 +101,45 @@ class SepsisScoringService:
                     timestamp=timestamp
                 )
                 
-                # Collect detailed qSOFA parameters if requested
+                # Always collect qSOFA parameters for potential reuse by NEWS2
+                detailed_qsofa_parameters = await collect_qsofa_parameters(
+                    patient_id=patient_id,
+                    fhir_client=self.fhir_client,
+                    timestamp=timestamp
+                )
+            
+            # If NEWS2 is requested but SOFA/qSOFA aren't, collect minimal parameters for reuse
+            elif "NEWS2" in requested_systems and "SOFA" not in requested_systems:
+                # Collect SOFA parameters silently for NEWS2 optimization (don't calculate SOFA score)
+                logger.debug("Collecting SOFA parameters for NEWS2 data reuse optimization")
+                detailed_parameters = await collect_sofa_parameters(
+                    patient_id=patient_id,
+                    fhir_client=self.fhir_client,
+                    timestamp=timestamp
+                )
+            
+            # Calculate NEWS2 score if requested (with data reuse optimization)
+            if "NEWS2" in requested_systems:
+                news2_result = await calculate_total_news2(
+                    patient_id=patient_id,
+                    fhir_client=self.fhir_client,
+                    timestamp=timestamp,
+                    sofa_params=detailed_parameters,  # Reuse SOFA parameters if available
+                    qsofa_params=detailed_qsofa_parameters  # Reuse qSOFA parameters if available
+                )
+                
+                # Collect detailed NEWS2 parameters if requested
                 if include_parameters:
-                    detailed_qsofa_parameters = await collect_qsofa_parameters(
+                    detailed_news2_parameters = await collect_news2_parameters(
                         patient_id=patient_id,
                         fhir_client=self.fhir_client,
-                        timestamp=timestamp
+                        timestamp=timestamp,
+                        sofa_params=detailed_parameters,  # Reuse SOFA parameters
+                        qsofa_params=detailed_qsofa_parameters  # Reuse qSOFA parameters
                     )
             
             # Default to SOFA if no valid systems specified
-            if not sofa_result and not qsofa_result:
+            if not sofa_result and not qsofa_result and not news2_result:
                 sofa_result = await calculate_total_sofa(
                     patient_id=patient_id,
                     fhir_client=self.fhir_client,
@@ -112,12 +147,15 @@ class SepsisScoringService:
                 )
             
             # Build response using centralized service
+            # Only include detailed parameters in response if requested
             response = SepsisResponseBuilder.build_assessment_response(
                 patient_id=patient_id,
                 sofa_result=sofa_result,
                 qsofa_result=qsofa_result,
-                detailed_parameters=detailed_parameters,
-                detailed_qsofa_parameters=detailed_qsofa_parameters,
+                news2_result=news2_result,
+                detailed_parameters=detailed_parameters if include_parameters else None,
+                detailed_qsofa_parameters=detailed_qsofa_parameters if include_parameters else None,
+                detailed_news2_parameters=detailed_news2_parameters,
                 timestamp=timestamp,
                 processing_time_ms=timer.elapsed_ms,
                 include_parameters=include_parameters
@@ -129,6 +167,8 @@ class SepsisScoringService:
                 log_parts.append(f"SOFA {sofa_result.total_score}/24")
             if qsofa_result:
                 log_parts.append(f"qSOFA {qsofa_result.total_score}/3")
+            if news2_result:
+                log_parts.append(f"NEWS2 {news2_result.total_score}/20")
             score_info = ", ".join(log_parts) if log_parts else "No scores calculated"
             
             logger.info(f"Sepsis score calculated: {score_info}, Risk: {response.sepsis_assessment.risk_level}, Time: {timer.elapsed_ms:.1f}ms")
@@ -205,7 +245,7 @@ class SepsisScoringService:
             scoring_systems=scoring_systems
         )
         
-        validate_scoring_systems(request_params.requested_systems, ["SOFA", "QSOFA"])
+        validate_scoring_systems(request_params.requested_systems, ["SOFA", "QSOFA", "NEWS2"])
         return request_params
 
 

@@ -142,7 +142,7 @@ def apply_parameter_defaults(
                 param.unit = units.get(param_name, "")
                 param.source = "default"
                 param.is_estimated = True
-                logger.debug(f"Applied default for {param_name}: {default_value}")
+                logger.debug(f"Applied default for {param_name}: [CLINICAL_DATA]")
         else:
             # Create new parameter with default
             parameters[param_name] = parameter_class(

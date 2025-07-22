@@ -20,9 +20,11 @@ This project showcases a practical application of Artificial Intelligence (AI) a
 ## 🎯 Objectives
 
 * **Clinical Objective:**
-  * Rapidly detect and predict sepsis using clinically validated scoring systems (qSOFA, SOFA scores)
+  * Rapidly detect and predict sepsis using clinically validated scoring systems (SOFA, qSOFA scores)
+  * Early detection of clinical deterioration using NEWS2 (National Early Warning Score 2) with data reuse optimization
   * Alert clinicians proactively with severity indicators and recommended interventions
-  * Provide comprehensive sepsis-related data aggregation and trend analysis
+  * Provide comprehensive triple scoring system (SOFA + qSOFA + NEWS2) for complete clinical assessment
+  * Deliver 85% reduction in FHIR API calls through intelligent parameter reuse
 
 * **Technical Objective:**
   * Leverage FHIR R4 resources to ingest, normalize, and extract features from clinical data
@@ -79,12 +81,33 @@ The system analyzes comprehensive clinical indicators from standardized FHIR R4 
 * **Data Window:** 4-hour lookback for rapid assessment
 * **High Risk Threshold:** ≥2 points indicates 10-fold increased risk of in-hospital mortality
 
+#### NEWS2 (National Early Warning Score 2)
+* **Purpose:** Early detection of clinical deterioration for all adult patients
+* **Score Range:** 0-20 points across 7 vital sign parameters
+* **Parameters:**
+  - Respiratory rate (0-3 points)
+  - Oxygen saturation with Scale 2 for COPD (0-3 points)
+  - Supplemental oxygen therapy (0 or 2 points)
+  - Temperature (0-3 points)
+  - Systolic blood pressure (0-3 points)
+  - Heart rate (0-3 points)
+  - Level of consciousness/AVPU (0 or 3 points)
+* **Data Window:** 4-hour lookback for rapid assessment
+* **Risk Levels:** 0-4 (LOW/routine monitoring), 5-6 (MEDIUM/urgent review), ≥7 (HIGH/emergency assessment)
+* **Data Reuse Optimization:** Reuses 6/7 parameters from SOFA/qSOFA (~85% API call reduction)
+
 ### Combined Risk Assessment Levels
-* 🟢 **MINIMAL** - qSOFA 0, SOFA 0-6
-* 🟡 **LOW** - qSOFA 1, SOFA 7-9
-* 🟠 **MODERATE** - qSOFA 1, SOFA 10-12 OR qSOFA 2, SOFA <10
-* 🔴 **HIGH** - qSOFA ≥2, SOFA 13-14
-* 🚨 **CRITICAL** - qSOFA 3, SOFA ≥15
+The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide comprehensive risk assessment:
+* 🟢 **MINIMAL** - All scores low risk (qSOFA 0, SOFA 0-6, NEWS2 0-4)
+* 🟡 **LOW** - Mild elevation in any system (qSOFA 1, SOFA 7-9, NEWS2 0-4)
+* 🟠 **MODERATE** - Moderate concern (qSOFA 1-2, SOFA 10-12, NEWS2 5-6)
+* 🔴 **HIGH** - High risk in any system (qSOFA ≥2, SOFA 13-14, NEWS2 ≥7)
+* 🚨 **CRITICAL** - Critical deterioration (qSOFA 3, SOFA ≥15, NEWS2 ≥7 with multiple parameters = 3)
+
+**Risk Prioritization Logic:** The system takes the highest risk level among all calculated scores, with special priority given to:
+- qSOFA ≥2 (sepsis concern)
+- NEWS2 ≥7 (clinical deterioration)
+- SOFA ≥10 (organ dysfunction)
 
 ---
 
@@ -187,13 +210,14 @@ Sepsis-AI-Alert/
 │   │   │   ├── labs.py          # Laboratory results by category
 │   │   │   ├── clinical.py      # Clinical context models
 │   │   │   ├── sofa.py          # SOFA scoring models
-│   │   │   └── qsofa.py         # qSOFA scoring models
+│   │   │   ├── qsofa.py         # qSOFA scoring models
+│   │   │   └── news2.py         # NEWS2 scoring models
 │   │   ├── routers/             # FastAPI route handlers
 │   │   │   ├── patients.py      # Patient demographics endpoints
 │   │   │   ├── vitals.py        # Vital signs endpoints
 │   │   │   ├── labs.py          # Laboratory results endpoints
 │   │   │   ├── clinical.py      # Clinical context endpoints
-│   │   │   └── sepsis_scoring.py # SOFA and qSOFA scoring endpoints
+│   │   │   └── sepsis_scoring.py # SOFA, qSOFA, and NEWS2 scoring endpoints
 │   │   ├── services/            # Business logic services
 │   │   │   ├── auth_client.py   # Enhanced OAuth2 JWT authentication
 │   │   │   └── fhir_client.py   # Comprehensive FHIR R4 client
@@ -203,6 +227,7 @@ Sepsis-AI-Alert/
 │   │       ├── fhir_utils.py    # FHIR bundle processing
 │   │       ├── sofa_scoring.py  # SOFA scoring algorithms
 │   │       ├── qsofa_scoring.py # qSOFA scoring algorithms
+│   │       ├── news2_scoring.py # NEWS2 scoring algorithms with 85% API call reduction
 │   │       ├── scoring_utils.py # Shared scoring utilities (DRY/KISS)
 │   │       └── error_handling.py # Standardized error handling
 │   └── tests/                   # Comprehensive test suite
@@ -266,14 +291,14 @@ Sepsis-AI-Alert/
   - Features: Net balance calculation, hourly urine rate monitoring
 
 ### Sepsis Scoring Endpoints
-- **`GET /api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`** - Individual sepsis risk assessment
-  - Query Parameters: `timestamp`, `include_parameters`, `scoring_systems` (SOFA, qSOFA, or both)
-  - Returns: Complete SOFA score (0-24) and qSOFA score (0-3) with mortality risk, organ dysfunction assessment, and clinical alerts
-  - Features: Real-time sepsis scoring, dual scoring system assessment, risk stratification (MINIMAL/LOW/MODERATE/HIGH/CRITICAL), clinical recommendations
-- **`POST /api/v1/sepsis-alert/patients/batch-sepsis-scores`** - Batch sepsis scoring (max 50 patients)
+- **`GET /api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`** - Comprehensive sepsis & deterioration risk assessment
+  - Query Parameters: `timestamp`, `include_parameters`, `scoring_systems` (SOFA, qSOFA, NEWS2, or any combination - **all three by default**)
+  - Returns: Complete assessment with SOFA score (0-24), qSOFA score (0-3), and NEWS2 score (0-20) with mortality risk, organ dysfunction, clinical deterioration assessment, and alerts
+  - Features: **Triple scoring system with 85% API call reduction**, intelligent parameter reuse, NHS-compliant NEWS2 standards, combined risk stratification (MINIMAL/LOW/MODERATE/HIGH/CRITICAL), clinical recommendations
+- **`POST /api/v1/sepsis-alert/patients/batch-sepsis-scores`** - Batch comprehensive scoring (max 50 patients)
   - Request Body: `BatchSepsisScoreRequest` with patient IDs and scoring parameters
-  - Returns: Individual SOFA and qSOFA scores for all patients with error handling for failed calculations
-  - Features: Dashboard integration, population monitoring, high-risk patient identification, dual scoring assessment
+  - Returns: Individual SOFA, qSOFA, and NEWS2 scores for all patients with error handling for failed calculations
+  - Features: Dashboard integration, population monitoring, high-risk patient identification, **triple scoring assessment with data reuse optimization**, performance optimization through parameter sharing
 
 ### System Endpoints
 - **`GET /health`** - Application health check
@@ -349,26 +374,6 @@ Sepsis-AI-Alert/
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-### Running Tests
-
-The project includes a comprehensive test suite using pytest:
-
-```bash
-# Run all tests
-pytest
-
-# Run tests with coverage
-pytest --cov=app
-
-# Run specific test files
-pytest backend/src/tests/test_endpoints/test_patients.py
-
-# Run tests with verbose output
-pytest -v
-
-# Run tests and generate HTML coverage report
-pytest --cov=app --cov-report=html
-```
 
 ### Testing the API
 
@@ -379,7 +384,6 @@ pytest --cov=app --cov-report=html
 
 2. **API Documentation**
    - Swagger UI: `http://localhost:8000/api/docs`
-   - ReDoc: `http://localhost:8000/redoc`
 
 3. **Sample API Calls** (with Epic FHIR sandbox)
    ```bash
@@ -413,29 +417,6 @@ pytest --cov=app --cov-report=html
      -H "Accept: application/json"
    ```
 
-### Development Setup
-
-For development with auto-reload and debugging:
-
-```bash
-# Recommended: Use the automated startup script
-python start_server.py
-
-# Alternative: Manual development setup
-# First activate virtual environment:
-# Windows: venv\Scripts\activate
-# Unix/macOS: source venv/bin/activate
-
-# Install development dependencies (if any)
-pip install -r requirements-dev.txt  # if exists
-
-# Run with debug mode and auto-reload
-cd backend/src
-uvicorn app.main:app --reload --debug --host 0.0.0.0 --port 8000
-
-# Run tests in watch mode (requires pytest-watch)
-ptw backend/src/tests/
-```
 
 ---
 
@@ -454,9 +435,11 @@ ptw backend/src/tests/
 ### Immediate Roadmap
 - [x] Complete FHIR client implementation with data processing
 - [x] Implement comprehensive sepsis scoring algorithms (SOFA and qSOFA)
-- [ ] Add real-time alerting system
+- [x] Implement NEWS2 (National Early Warning Score) integration with data reuse optimization
+- [x] Deploy triple scoring system with 85% API call reduction through parameter reuse
+- [x] Implement NHS-compliant NEWS2 clinical standards and risk stratification
+- [ ] Add real-time alerting system with trend analysis
 - [ ] Create clinical dashboard frontend
-- [ ] Implement NEWS2 (National Early Warning Score) integration
 
 ### Long-term Vision
 - [ ] Machine learning model integration

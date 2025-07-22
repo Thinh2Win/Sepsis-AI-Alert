@@ -102,7 +102,7 @@ def _assess_mental_status_simple(gcs_param: QsofaParameter) -> bool:
         True if altered mental status detected (GCS < 15)
     """
     if gcs_param.value is not None and gcs_param.value < QsofaThresholds.GCS_THRESHOLD:
-        logger.debug(f"Altered mental status detected: GCS {gcs_param.value}")
+        logger.debug("Altered mental status detected: GCS below threshold")
         return True
     return False
 
