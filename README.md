@@ -295,6 +295,10 @@ Sepsis-AI-Alert/
   - Query Parameters: `timestamp`, `include_parameters`, `scoring_systems` (SOFA, qSOFA, NEWS2, or any combination - **all three by default**)
   - Returns: Complete assessment with SOFA score (0-24), qSOFA score (0-3), and NEWS2 score (0-20) with mortality risk, organ dysfunction, clinical deterioration assessment, and alerts
   - Features: **Triple scoring system with 85% API call reduction**, intelligent parameter reuse, NHS-compliant NEWS2 standards, combined risk stratification (MINIMAL/LOW/MODERATE/HIGH/CRITICAL), clinical recommendations
+- **`POST /api/v1/sepsis-alert/patients/sepsis-score-direct`** - Direct parameter sepsis scoring (no FHIR calls)
+  - Request Body: `DirectSepsisScoreRequest` with clinical parameters provided directly
+  - Returns: Same comprehensive assessment as FHIR-based endpoint
+  - Features: **External system integration**, manual parameter entry, testing/validation support, emergency situations with limited FHIR access
 - **`POST /api/v1/sepsis-alert/patients/batch-sepsis-scores`** - Batch comprehensive scoring (max 50 patients)
   - Request Body: `BatchSepsisScoreRequest` with patient IDs and scoring parameters
   - Returns: Individual SOFA, qSOFA, and NEWS2 scores for all patients with error handling for failed calculations
@@ -415,8 +419,143 @@ Sepsis-AI-Alert/
    curl -X GET \
      "http://localhost:8000/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB/vitals/latest" \
      -H "Accept: application/json"
+   
+   # FHIR-based sepsis scoring (fetches data from Epic)
+   curl -X GET \
+     "http://localhost:8000/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB/sepsis-score?scoring_systems=SOFA,qSOFA,NEWS2" \
+     -H "Accept: application/json"
+   
+   # Direct parameter sepsis scoring (no FHIR calls required)
+   curl -X POST \
+     "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "patient_id": "direct-test-001",
+       "respiratory_rate": 24,
+       "systolic_bp": 95,
+       "glasgow_coma_scale": 12,
+       "heart_rate": 105,
+       "temperature": 38.8,
+       "oxygen_saturation": 92,
+       "supplemental_oxygen": true,
+       "platelets": 90,
+       "creatinine": 2.2,
+       "scoring_systems": "SOFA,qSOFA,NEWS2"
+     }'
    ```
 
+
+---
+
+## 💡 Direct Parameter Integration
+
+The system now supports **direct parameter input** for sepsis scoring, providing flexibility for external systems and manual data entry scenarios.
+
+### Use Cases for Direct Parameter Endpoint
+
+**External System Integration**
+- Non-FHIR systems that want to leverage sepsis scoring algorithms
+- Legacy EHR systems without FHIR R4 support
+- Third-party clinical applications requiring sepsis risk assessment
+
+**Clinical Scenarios**
+- Manual parameter entry during emergency situations
+- Bedside risk assessment with limited EHR access
+- Educational and training environments
+- Research and algorithm validation studies
+
+**Testing and Development**
+- Controlled parameter testing for algorithm validation
+- Performance testing without FHIR dependency
+- Integration testing with known parameter sets
+- Clinical decision support system development
+
+### Parameter Categories
+
+**Required Parameters (Minimum Viable Assessment)**
+```json
+{
+  "patient_id": "string",
+  "respiratory_rate": "number (breaths/min)",
+  "systolic_bp": "number (mmHg)",
+  "glasgow_coma_scale": "number (3-15)"
+}
+```
+
+**Complete Parameter Set (Maximum Clinical Value)**
+```json
+{
+  "patient_id": "string",
+  "timestamp": "ISO 8601 datetime",
+  
+  // SOFA Parameters
+  "pao2": "number (mmHg)",
+  "fio2": "number (0.21-1.0)",
+  "mechanical_ventilation": "boolean",
+  "platelets": "number (x10³/μL)",
+  "bilirubin": "number (mg/dL)",
+  "systolic_bp": "number (mmHg)",
+  "diastolic_bp": "number (mmHg)",
+  "mean_arterial_pressure": "number (mmHg)",
+  "glasgow_coma_scale": "number (3-15)",
+  "creatinine": "number (mg/dL)",
+  "urine_output_24h": "number (mL)",
+  
+  // Vasopressor Doses (mcg/kg/min)
+  "dopamine": "number",
+  "dobutamine": "number",
+  "epinephrine": "number",
+  "norepinephrine": "number",
+  "phenylephrine": "number",
+  
+  // Vital Signs (shared across systems)
+  "respiratory_rate": "number (breaths/min)",
+  "heart_rate": "number (bpm)",
+  "temperature": "number (°C)",
+  "oxygen_saturation": "number (%)",
+  "supplemental_oxygen": "boolean",
+  
+  // Configuration
+  "scoring_systems": "string (SOFA,qSOFA,NEWS2)",
+  "include_parameters": "boolean",
+  "hypercapnic_respiratory_failure": "boolean"
+}
+```
+
+### Clinical Default Values
+
+When parameters are not provided, the system applies clinically appropriate defaults:
+- **Respiratory Rate**: 16 breaths/min
+- **Systolic BP**: 120 mmHg
+- **Glasgow Coma Scale**: 15 (normal)
+- **Heart Rate**: 70 bpm
+- **Temperature**: 37°C
+- **Oxygen Saturation**: 98%
+- **Laboratory Values**: Normal reference ranges
+
+### Response Format
+
+The direct parameter endpoint returns **identical response format** to the FHIR-based endpoint, ensuring compatibility with existing integrations:
+
+```json
+{
+  "patient_id": "string",
+  "timestamp": "ISO 8601 datetime",
+  "sofa_score": { "total_score": "0-24", "risk_level": "string" },
+  "qsofa_score": { "total_score": "0-3", "risk_level": "string" },
+  "news2_score": { "total_score": "0-20", "risk_level": "string" },
+  "sepsis_assessment": {
+    "risk_level": "MINIMAL|LOW|MODERATE|HIGH|CRITICAL",
+    "recommendation": "string",
+    "requires_immediate_attention": "boolean"
+  },
+  "calculation_metadata": {
+    "estimated_parameters": "number",
+    "missing_parameters": "array",
+    "calculation_time_ms": "number"
+  }
+}
+```
 
 ---
 
