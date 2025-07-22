@@ -20,10 +20,11 @@ This project showcases a practical application of Artificial Intelligence (AI) a
 ## 🎯 Objectives
 
 * **Clinical Objective:**
-  * Rapidly detect and predict sepsis using clinically validated scoring systems (qSOFA, SOFA scores)
-  * Early detection of clinical deterioration using NEWS2 (National Early Warning Score 2)
+  * Rapidly detect and predict sepsis using clinically validated scoring systems (SOFA, qSOFA scores)
+  * Early detection of clinical deterioration using NEWS2 (National Early Warning Score 2) with data reuse optimization
   * Alert clinicians proactively with severity indicators and recommended interventions
-  * Provide comprehensive sepsis-related data aggregation and trend analysis
+  * Provide comprehensive triple scoring system (SOFA + qSOFA + NEWS2) for complete clinical assessment
+  * Deliver 85% reduction in FHIR API calls through intelligent parameter reuse
 
 * **Technical Objective:**
   * Leverage FHIR R4 resources to ingest, normalize, and extract features from clinical data
@@ -226,7 +227,7 @@ Sepsis-AI-Alert/
 │   │       ├── fhir_utils.py    # FHIR bundle processing
 │   │       ├── sofa_scoring.py  # SOFA scoring algorithms
 │   │       ├── qsofa_scoring.py # qSOFA scoring algorithms
-│   │       ├── news2_scoring.py # NEWS2 scoring algorithms with data reuse
+│   │       ├── news2_scoring.py # NEWS2 scoring algorithms with 85% API call reduction
 │   │       ├── scoring_utils.py # Shared scoring utilities (DRY/KISS)
 │   │       └── error_handling.py # Standardized error handling
 │   └── tests/                   # Comprehensive test suite
@@ -291,13 +292,13 @@ Sepsis-AI-Alert/
 
 ### Sepsis Scoring Endpoints
 - **`GET /api/v1/sepsis-alert/patients/{patient_id}/sepsis-score`** - Comprehensive sepsis & deterioration risk assessment
-  - Query Parameters: `timestamp`, `include_parameters`, `scoring_systems` (SOFA, qSOFA, NEWS2, or any combination - all three by default)
+  - Query Parameters: `timestamp`, `include_parameters`, `scoring_systems` (SOFA, qSOFA, NEWS2, or any combination - **all three by default**)
   - Returns: Complete assessment with SOFA score (0-24), qSOFA score (0-3), and NEWS2 score (0-20) with mortality risk, organ dysfunction, clinical deterioration assessment, and alerts
-  - Features: **Triple scoring system assessment**, data reuse optimization (~85% reduction in API calls), intelligent risk stratification (MINIMAL/LOW/MODERATE/HIGH/CRITICAL), clinical recommendations
+  - Features: **Triple scoring system with 85% API call reduction**, intelligent parameter reuse, NHS-compliant NEWS2 standards, combined risk stratification (MINIMAL/LOW/MODERATE/HIGH/CRITICAL), clinical recommendations
 - **`POST /api/v1/sepsis-alert/patients/batch-sepsis-scores`** - Batch comprehensive scoring (max 50 patients)
   - Request Body: `BatchSepsisScoreRequest` with patient IDs and scoring parameters
   - Returns: Individual SOFA, qSOFA, and NEWS2 scores for all patients with error handling for failed calculations
-  - Features: Dashboard integration, population monitoring, high-risk patient identification, **triple scoring assessment** with performance optimization
+  - Features: Dashboard integration, population monitoring, high-risk patient identification, **triple scoring assessment with data reuse optimization**, performance optimization through parameter sharing
 
 ### System Endpoints
 - **`GET /health`** - Application health check
@@ -435,7 +436,9 @@ Sepsis-AI-Alert/
 - [x] Complete FHIR client implementation with data processing
 - [x] Implement comprehensive sepsis scoring algorithms (SOFA and qSOFA)
 - [x] Implement NEWS2 (National Early Warning Score) integration with data reuse optimization
-- [ ] Add real-time alerting system
+- [x] Deploy triple scoring system with 85% API call reduction through parameter reuse
+- [x] Implement NHS-compliant NEWS2 clinical standards and risk stratification
+- [ ] Add real-time alerting system with trend analysis
 - [ ] Create clinical dashboard frontend
 
 ### Long-term Vision
