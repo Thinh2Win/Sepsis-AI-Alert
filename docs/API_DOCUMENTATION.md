@@ -1264,6 +1264,196 @@ curl -X GET \
 
 ---
 
+### Calculate Sepsis Score with Direct Parameters
+
+**Purpose:** Calculate SOFA, qSOFA, and NEWS2 scores using clinical parameters provided directly in the request body, bypassing FHIR data retrieval. Ideal for external system integration, manual parameter entry, and testing scenarios.
+
+**HTTP Method & URL:** `POST /patients/sepsis-score-direct`
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Headers:**
+- `Content-Type: application/json` (required)
+- `Accept: application/json` (required)
+
+**Request Body:**
+```json
+{
+  "patient_id": "string (required)",
+  "timestamp": "ISO datetime (optional)",
+  
+  // Core vital signs (minimum viable parameters)
+  "respiratory_rate": "number (breaths/min, optional)",
+  "systolic_bp": "number (mmHg, optional)",
+  "glasgow_coma_scale": "number (3-15, optional)",
+  
+  // Additional SOFA parameters
+  "pao2": "number (mmHg, optional)",
+  "fio2": "number (0.21-1.0, optional)",
+  "mechanical_ventilation": "boolean (optional)",
+  "platelets": "number (x10³/μL, optional)",
+  "bilirubin": "number (mg/dL, optional)",
+  "diastolic_bp": "number (mmHg, optional)",
+  "mean_arterial_pressure": "number (mmHg, optional)",
+  "creatinine": "number (mg/dL, optional)",
+  "urine_output_24h": "number (mL, optional)",
+  
+  // Vasopressor doses (mcg/kg/min)
+  "dopamine": "number (optional)",
+  "dobutamine": "number (optional)",
+  "epinephrine": "number (optional)",
+  "norepinephrine": "number (optional)",
+  "phenylephrine": "number (optional)",
+  
+  // Additional vital signs for NEWS2
+  "heart_rate": "number (bpm, optional)",
+  "temperature": "number (°C, optional)",
+  "oxygen_saturation": "number (%, optional)",
+  "supplemental_oxygen": "boolean (optional)",
+  "consciousness_level_avpu": "string (A/V/P/U, optional)",
+  
+  // Configuration
+  "scoring_systems": "string (SOFA,qSOFA,NEWS2, optional, default: SOFA,qSOFA,NEWS2)",
+  "include_parameters": "boolean (optional, default: false)",
+  "hypercapnic_respiratory_failure": "boolean (optional, for COPD patients)"
+}
+```
+
+**Response:**
+- **Success:** 200 OK
+- **Body Schema:** Same as FHIR-based endpoint (SepsisAssessmentResponse)
+  ```json
+  {
+    "patient_id": "string",
+    "timestamp": "ISO datetime",
+    "sofa_score": {
+      "total_score": "number (0-24)",
+      "risk_level": "string (LOW/MODERATE/HIGH)",
+      "individual_scores": {
+        "respiratory": "number (0-4)",
+        "coagulation": "number (0-4)",
+        "liver": "number (0-4)",
+        "cardiovascular": "number (0-4)",
+        "cns": "number (0-4)",
+        "renal": "number (0-4)"
+      },
+      "data_reliability": "number (0-1)"
+    },
+    "qsofa_score": {
+      "total_score": "number (0-3)",
+      "risk_level": "string (LOW/MODERATE/HIGH)",
+      "high_risk": "boolean",
+      "clinical_interpretation": "string"
+    },
+    "news2_score": {
+      "total_score": "number (0-20)",
+      "risk_level": "string (LOW/MEDIUM/HIGH)",
+      "clinical_response": "string",
+      "monitoring_frequency": "string",
+      "escalation_required": "boolean"
+    },
+    "sepsis_assessment": {
+      "risk_level": "string (MINIMAL/LOW/MODERATE/HIGH/CRITICAL)",
+      "recommendation": "string",
+      "requires_immediate_attention": "boolean",
+      "contributing_factors": ["string"]
+    },
+    "calculation_metadata": {
+      "estimated_parameters": "number",
+      "missing_parameters": ["string"],
+      "calculation_time_ms": "number"
+    }
+  }
+  ```
+
+**Error Responses:**
+- **400 Bad Request:** Invalid parameter values or request format
+- **422 Unprocessable Entity:** Parameter validation errors
+- **500 Internal Server Error:** Calculation error
+
+**Examples:**
+
+**High-Risk Patient (Critical Sepsis):**
+```bash
+curl -X POST \
+  "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patient_id": "high-risk-001",
+    "respiratory_rate": 24,
+    "systolic_bp": 95,
+    "glasgow_coma_scale": 12,
+    "heart_rate": 105,
+    "temperature": 38.8,
+    "oxygen_saturation": 92,
+    "supplemental_oxygen": true,
+    "platelets": 90,
+    "creatinine": 2.2,
+    "norepinephrine": 0.15,
+    "scoring_systems": "SOFA,qSOFA,NEWS2"
+  }'
+```
+
+**Normal Patient (Low Risk):**
+```bash
+curl -X POST \
+  "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patient_id": "normal-001",
+    "respiratory_rate": 16,
+    "systolic_bp": 120,
+    "glasgow_coma_scale": 15,
+    "heart_rate": 72,
+    "temperature": 37.0,
+    "oxygen_saturation": 98,
+    "supplemental_oxygen": false
+  }'
+```
+
+**Minimal Parameters (Emergency Scenario):**
+```bash
+curl -X POST \
+  "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patient_id": "emergency-001",
+    "respiratory_rate": 22,
+    "systolic_bp": 100,
+    "glasgow_coma_scale": 14,
+    "scoring_systems": "qSOFA"
+  }'
+```
+
+**Use Cases:**
+- **External System Integration:** Non-FHIR systems requiring sepsis risk assessment
+- **Legacy EHR Integration:** Systems without FHIR R4 support
+- **Manual Clinical Assessment:** Bedside scoring with limited EHR access
+- **Testing and Validation:** Algorithm testing with controlled parameter sets
+- **Emergency Scenarios:** Quick assessment when FHIR systems are unavailable
+- **Research Applications:** Clinical studies requiring standardized parameter input
+
+**Clinical Default Values:**
+When parameters are not provided, the system applies clinically appropriate defaults:
+- Respiratory Rate: 16 breaths/min
+- Systolic BP: 120 mmHg  
+- Glasgow Coma Scale: 15 (normal)
+- Heart Rate: 70 bpm
+- Temperature: 37°C
+- Oxygen Saturation: 98%
+- Laboratory values: Normal reference ranges
+
+**Notes:**
+- **No FHIR dependency**: Eliminates network latency and API rate limits
+- **Same algorithms**: Uses identical scoring calculations as FHIR-based endpoint
+- **Parameter reuse**: NEWS2 optimization still applies (reuses SOFA/qSOFA parameters)
+- **Data quality tracking**: Missing/estimated parameters are tracked and reported
+- **Response compatibility**: Identical response format to FHIR-based endpoint
+
+---
+
 ### Calculate Batch Patient Sepsis Scores
 
 **Purpose:** Calculate SOFA, qSOFA, and NEWS2 scores for multiple patients simultaneously for population monitoring, clinical deterioration detection, and dashboard integration.

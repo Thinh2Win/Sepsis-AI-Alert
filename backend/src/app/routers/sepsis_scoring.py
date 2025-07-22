@@ -5,7 +5,7 @@ import logging
 
 from app.models.sofa import (
     SepsisAssessmentResponse, BatchSepsisScoreRequest, 
-    BatchSepsisScoreResponse
+    BatchSepsisScoreResponse, DirectSepsisScoreRequest
 )
 from app.services.fhir_client import FHIRClient
 from app.services.sepsis_scoring_service import SepsisScoringServiceFactory
@@ -109,5 +109,57 @@ async def get_batch_sepsis_scores(
     # Delegate to service layer
     service = SepsisScoringServiceFactory.create_service(fhir_client)
     return await service.calculate_batch_sepsis_scores(request)
+
+
+@router.post("/patients/sepsis-score-direct", response_model=SepsisAssessmentResponse)
+@handle_sepsis_errors(operation_name="direct sepsis score calculation")
+async def calculate_direct_sepsis_score(
+    request: DirectSepsisScoreRequest,
+    fhir_client: FHIRClient = Depends(get_fhir_client)
+):
+    """
+    Calculate sepsis assessment scores using directly provided clinical parameters.
+    
+    **Alternative to FHIR-based endpoint:** This endpoint accepts clinical parameters
+    directly in the request body instead of fetching data from FHIR endpoints.
+    
+    **Supported Scoring Systems:**
+    - SOFA (Sequential Organ Failure Assessment) score (0-24)
+    - qSOFA (Quick SOFA) score (0-3)  
+    - NEWS2 (National Early Warning Score 2) (0-20)
+    
+    **Key Benefits:**
+    - **Flexibility**: Accept parameters from any source (non-FHIR systems)
+    - **Performance**: Skip FHIR API calls when data is already available
+    - **Testing**: Enable controlled parameter testing
+    - **Integration**: Support external systems with different data formats
+    
+    **Parameter Requirements:**
+    - **SOFA**: PaO2, FiO2, platelets, bilirubin, MAP/BP, GCS, creatinine, urine output, vasopressors
+    - **qSOFA**: Respiratory rate, systolic BP, GCS (rapid screening)
+    - **NEWS2**: Respiratory rate, SpO2, supplemental O2, temperature, systolic BP, heart rate, consciousness
+    
+    **Clinical Defaults Applied:**
+    - Missing parameters automatically use clinically appropriate default values
+    - Estimated/default parameters are tracked in response for transparency
+    - Data reliability scoring indicates parameter completeness
+    
+    **Response Format:**
+    - Same structure as FHIR-based endpoint for compatibility
+    - Triple scoring system (SOFA + qSOFA + NEWS2) by default
+    - Combined risk assessment with clinical recommendations
+    - Individual component scores and interpretations
+    - Data quality indicators and missing parameter tracking
+    
+    **Example Use Cases:**
+    - External system integration without FHIR
+    - Manual clinical parameter entry
+    - Batch processing with known parameters
+    - Algorithm testing and validation
+    - Emergency situations with limited FHIR access
+    """
+    # Create service without FHIR client (not needed for direct calculation)
+    service = SepsisScoringServiceFactory.create_service(fhir_client)
+    return await service.calculate_direct_sepsis_score(request)
 
 

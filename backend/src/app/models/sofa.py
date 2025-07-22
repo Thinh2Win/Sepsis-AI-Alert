@@ -319,6 +319,65 @@ class SofaScoreTrend(BaseModel):
 
 # API Request/Response Models for Sepsis Scoring Endpoint
 
+class DirectSepsisScoreRequest(BaseModel):
+    """Request model for direct parameter sepsis scoring (no FHIR calls)"""
+    patient_id: str = Field(description="Patient identifier")
+    timestamp: Optional[datetime] = Field(default=None, description="Target timestamp for scoring")
+    
+    # SOFA Parameters
+    # Respiratory system
+    pao2: Optional[float] = Field(default=None, ge=0, description="Arterial oxygen partial pressure (mmHg)")
+    fio2: Optional[float] = Field(default=None, ge=0.21, le=1.0, description="Fraction of inspired oxygen (0.21-1.0)")
+    mechanical_ventilation: Optional[bool] = Field(default=False, description="Patient on mechanical ventilation")
+    
+    # Coagulation system  
+    platelets: Optional[float] = Field(default=None, ge=0, description="Platelet count (x 10^3/uL)")
+    
+    # Liver system
+    bilirubin: Optional[float] = Field(default=None, ge=0, description="Total bilirubin (mg/dL)")
+    
+    # Cardiovascular system
+    systolic_bp: Optional[float] = Field(default=None, ge=0, le=300, description="Systolic blood pressure (mmHg)")
+    diastolic_bp: Optional[float] = Field(default=None, ge=0, le=200, description="Diastolic blood pressure (mmHg)")
+    mean_arterial_pressure: Optional[float] = Field(default=None, ge=0, le=200, description="Mean arterial pressure (mmHg)")
+    
+    # Vasopressor doses (mcg/kg/min)
+    dopamine: Optional[float] = Field(default=None, ge=0, description="Dopamine dose (mcg/kg/min)")
+    dobutamine: Optional[float] = Field(default=None, ge=0, description="Dobutamine dose (mcg/kg/min)")
+    epinephrine: Optional[float] = Field(default=None, ge=0, description="Epinephrine dose (mcg/kg/min)")
+    norepinephrine: Optional[float] = Field(default=None, ge=0, description="Norepinephrine dose (mcg/kg/min)")
+    phenylephrine: Optional[float] = Field(default=None, ge=0, description="Phenylephrine dose (mcg/kg/min)")
+    
+    # Central nervous system
+    glasgow_coma_scale: Optional[float] = Field(default=None, ge=3, le=15, description="Glasgow Coma Scale (3-15)")
+    
+    # Renal system
+    creatinine: Optional[float] = Field(default=None, ge=0, description="Serum creatinine (mg/dL)")
+    urine_output_24h: Optional[float] = Field(default=None, ge=0, description="24-hour urine output (mL)")
+    
+    # qSOFA Parameters (some shared with SOFA)
+    respiratory_rate: Optional[float] = Field(default=None, ge=0, le=60, description="Respiratory rate (breaths/min)")
+    
+    # NEWS2 Parameters (some shared with SOFA/qSOFA)  
+    heart_rate: Optional[float] = Field(default=None, ge=0, le=300, description="Heart rate (beats/min)")
+    temperature: Optional[float] = Field(default=None, ge=25, le=45, description="Body temperature (°C)")
+    oxygen_saturation: Optional[float] = Field(default=None, ge=0, le=100, description="Oxygen saturation (%)")
+    supplemental_oxygen: Optional[bool] = Field(default=False, description="Patient on supplemental oxygen")
+    consciousness_level_avpu: Optional[str] = Field(default=None, description="AVPU consciousness level (A/V/P/U)")
+    
+    # Configuration
+    scoring_systems: str = Field(default="SOFA,qSOFA,NEWS2", description="Scoring systems to calculate")
+    include_parameters: bool = Field(default=False, description="Include detailed parameters in response")
+    
+    # Special conditions
+    hypercapnic_respiratory_failure: Optional[bool] = Field(default=False, description="COPD with hypercapnic respiratory failure (NEWS2 Scale 2)")
+    
+    @computed_field
+    @property
+    def requested_systems(self) -> List[str]:
+        """Parse requested scoring systems"""
+        return [system.strip().upper() for system in self.scoring_systems.split(",")]
+
 class SepsisScoreRequest(BaseModel):
     """Request parameters for sepsis score calculation"""
     timestamp: Optional[datetime] = None

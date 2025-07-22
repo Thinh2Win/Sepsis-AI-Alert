@@ -247,6 +247,7 @@ Urine output
 - [x] **Laboratory Results**: `/api/v1/sepsis-alert/patients/{patient_id}/labs`
 - [x] **Clinical Context**: `/api/v1/sepsis-alert/patients/{patient_id}/encounter`
 - [x] **SOFA, qSOFA & NEWS2 Triple Scoring System**: `/api/v1/sepsis-alert/patients/{patient_id}/sepsis-score` (calculates all three scores by default)
+- [x] **Direct Parameter Sepsis Scoring**: `/api/v1/sepsis-alert/patients/sepsis-score-direct` (accepts parameters directly without FHIR calls)
 - [x] **Batch Triple Scoring**: `/api/v1/sepsis-alert/patients/batch-sepsis-scores` (processes multiple patients with SOFA, qSOFA, and NEWS2)
 
 #### Sepsis Scoring Implementation
@@ -260,6 +261,7 @@ Urine output
 - [x] **Configuration Management**: Centralized constants and thresholds for all scoring systems
 - [x] **DRY/KISS Refactoring**: Shared utilities to eliminate code duplication between scoring systems
 - [x] **Data Reuse Optimization**: NEWS2 reuses SOFA/qSOFA parameters to minimize FHIR API calls (~85% reduction)
+- [x] **Direct Parameter Input**: Alternative endpoint accepting clinical parameters directly in request body for external system integration
 
 ### 🔄 In Progress
 
@@ -374,6 +376,178 @@ The NEWS2 (National Early Warning Score 2) scoring system has been implemented a
 - **Consistent Timestamps**: All parameters use aligned time windows for accuracy
 - **Reliable Scoring**: Fallback mechanisms ensure scoring always possible with clinical defaults
 - **Complete Integration**: Seamless operation with existing sepsis scoring infrastructure
+
+## Direct Parameter Implementation Details
+
+### Direct Parameter Sepsis Scoring System Overview
+The direct parameter endpoint provides an alternative to FHIR-based scoring by accepting clinical parameters directly in the request body.
+
+#### Clinical Purpose
+- **Primary Use**: External system integration without FHIR dependency
+- **Target Systems**: Non-FHIR EHR systems, legacy systems, third-party applications
+- **Speed**: No FHIR API calls required - immediate calculation
+- **Flexibility**: Manual parameter entry, testing, emergency scenarios
+
+#### Implementation Architecture
+- **Request Model**: `DirectSepsisScoreRequest` in `app/models/sofa.py` - Complete parameter model with validation
+- **Service Method**: `calculate_direct_sepsis_score()` in `SepsisScoringService` - Main calculation orchestrator
+- **Parameter Conversion**: Helper methods to convert request to scoring model objects
+- **Scoring Calculation**: Reuses existing SOFA, qSOFA, and NEWS2 calculation functions
+- **Response Builder**: Uses same `SepsisResponseBuilder` for consistent response format
+
+#### Key Components
+
+##### Request Model (`DirectSepsisScoreRequest`)
+```python
+# Core required parameters
+patient_id: str
+timestamp: Optional[datetime]
+
+# SOFA Parameters
+pao2, fio2, mechanical_ventilation: Optional[float/bool]
+platelets, bilirubin: Optional[float]  
+systolic_bp, diastolic_bp, mean_arterial_pressure: Optional[float]
+glasgow_coma_scale, creatinine, urine_output_24h: Optional[float]
+dopamine, dobutamine, epinephrine, norepinephrine, phenylephrine: Optional[float]
+
+# qSOFA Parameters (shared with SOFA)
+respiratory_rate: Optional[float]
+
+# NEWS2 Parameters (some shared with SOFA/qSOFA)
+heart_rate, temperature, oxygen_saturation: Optional[float]
+supplemental_oxygen, hypercapnic_respiratory_failure: Optional[bool]
+consciousness_level_avpu: Optional[str]
+
+# Configuration
+scoring_systems: str = "SOFA,qSOFA,NEWS2"
+include_parameters: bool = False
+```
+
+##### Service Implementation
+```python
+async def calculate_direct_sepsis_score(request: DirectSepsisScoreRequest) -> SepsisAssessmentResponse:
+    # 1. Validate inputs and create parameter objects
+    sofa_params = self._create_sofa_parameters_from_request(request, timestamp)
+    qsofa_params = self._create_qsofa_parameters_from_request(request, timestamp)
+    news2_params = self._create_news2_parameters_from_request(request, timestamp)
+    
+    # 2. Calculate scores for requested systems
+    if "SOFA" in request.requested_systems:
+        sofa_result = self._calculate_sofa_from_parameters(sofa_params)
+    
+    # 3. Build unified response using existing response builder
+    response = SepsisResponseBuilder.build_assessment_response(...)
+```
+
+#### Parameter Conversion & Processing
+
+##### SOFA Parameter Conversion
+- Converts request fields to `SofaParameters` object
+- Calculates MAP from systolic/diastolic BP if not provided
+- Creates `VasopressorDoses` object from individual vasopressor doses
+- Calculates PaO2/FiO2 ratio from PaO2 and FiO2 if both available
+- Marks all parameters as `source="direct"` for tracking
+
+##### qSOFA Parameter Conversion
+- Converts to `QsofaParameters` object with 3 core parameters
+- Automatically determines `altered_mental_status` from GCS < 15
+- Maintains same 4-hour time window concept for consistency
+
+##### NEWS2 Parameter Conversion
+- Converts to `News2Parameters` object with 7 parameters
+- Maps AVPU consciousness level to GCS equivalents (A=15, V=13, P=8, U=3)
+- Supports both direct GCS input and AVPU string input
+- Handles COPD Scale 2 scenarios with `hypercapnic_respiratory_failure` flag
+
+#### Clinical Default Values & Validation
+The system applies clinically appropriate defaults for missing parameters:
+
+```python
+# Default vital signs (normal adult values)
+RESPIRATORY_RATE_DEFAULT = 16  # breaths/min
+SYSTOLIC_BP_DEFAULT = 120      # mmHg
+HEART_RATE_DEFAULT = 70        # bpm
+TEMPERATURE_DEFAULT = 37.0     # °C
+GCS_DEFAULT = 15               # normal consciousness
+OXYGEN_SATURATION_DEFAULT = 98 # %
+
+# Laboratory defaults (normal reference ranges)
+PLATELETS_DEFAULT = 250        # x10³/μL
+CREATININE_DEFAULT = 1.0       # mg/dL
+BILIRUBIN_DEFAULT = 0.8        # mg/dL
+```
+
+#### Data Quality & Reliability Tracking
+- **Parameter Source Tracking**: All direct parameters marked as `source="direct"`
+- **Missing Parameter Detection**: Identifies which parameters were defaulted
+- **Reliability Scoring**: Same calculation as FHIR-based scoring
+- **Calculation Metadata**: Includes timing and data quality information
+
+#### Response Format Compatibility
+The direct parameter endpoint returns **identical response structure** to the FHIR-based endpoint:
+- Same `SepsisAssessmentResponse` model
+- Identical risk level calculations and clinical recommendations
+- Compatible with existing frontend integrations
+- Consistent parameter reuse optimizations
+
+#### Use Cases & Integration Scenarios
+
+##### External System Integration
+```json
+{
+  "patient_id": "external-system-001",
+  "respiratory_rate": 24,
+  "systolic_bp": 95,
+  "glasgow_coma_scale": 12,
+  "heart_rate": 105,
+  "temperature": 38.8,
+  "oxygen_saturation": 92,
+  "supplemental_oxygen": true,
+  "scoring_systems": "SOFA,qSOFA,NEWS2"
+}
+```
+
+##### Emergency/Manual Entry
+```json
+{
+  "patient_id": "bedside-assessment-001",
+  "respiratory_rate": 22,
+  "systolic_bp": 100,
+  "glasgow_coma_scale": 14,
+  "temperature": 39.0,
+  "scoring_systems": "qSOFA"
+}
+```
+
+##### Algorithm Testing/Validation
+```json
+{
+  "patient_id": "validation-case-001",
+  "pao2": 75, "fio2": 0.4, "mechanical_ventilation": true,
+  "platelets": 90, "bilirubin": 2.5,
+  "systolic_bp": 85, "diastolic_bp": 50,
+  "glasgow_coma_scale": 10, "creatinine": 2.5,
+  "norepinephrine": 0.15,
+  "respiratory_rate": 28, "heart_rate": 120,
+  "temperature": 38.5, "oxygen_saturation": 88,
+  "supplemental_oxygen": true,
+  "include_parameters": true
+}
+```
+
+#### Performance & Optimization Features
+- **No FHIR Dependency**: Eliminates network latency and API rate limits
+- **Parameter Reuse**: Same optimization as FHIR-based endpoint (NEWS2 reuses SOFA/qSOFA parameters)
+- **Immediate Calculation**: Direct parameter processing without data retrieval overhead
+- **Batch Compatible**: Can be integrated with batch processing systems
+- **Stateless Operation**: No external dependencies beyond parameter validation
+
+#### Error Handling & Validation
+- **Request Validation**: Pydantic model validation with clinical ranges
+- **Parameter Validation**: Clinical range checking (e.g., GCS 3-15, temp 25-45°C)
+- **Graceful Degradation**: Applies defaults for missing parameters
+- **Error Transparency**: Clear error messages for invalid inputs
+- **Data Quality Reporting**: Tracks estimated/defaulted parameters
 
 ### Epic FHIR Endpoints/FastAPI to EPIC FHIR R4 Endpoint Mapping (Reference)
 1. Patient Demographics Endpoints
