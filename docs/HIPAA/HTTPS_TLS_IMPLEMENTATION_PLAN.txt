@@ -199,8 +199,8 @@ Updates:
 
 File: start_server.py
 Updates:
-- SSL certificate validation
-- Conditional SSL parameters
+- TLS certificate validation
+- Conditional TLS parameters
 - Support for HTTP/HTTPS modes
 - Enhanced error handling
 
@@ -209,11 +209,11 @@ Updates:
 
 File: .env (new variables)
 ```
-# SSL Configuration
-SSL_ENABLED=false
-SSL_CERT_FILE=public_cert.pem
-SSL_KEY_FILE=private.pem
-SSL_PORT=8443
+# TLS Configuration
+TLS_ENABLED=false
+TLS_CERT_FILE=public_cert.pem
+TLS_KEY_FILE=private.pem
+TLS_PORT=8443
 FORCE_HTTPS=false
 
 # Security Configuration  
@@ -427,13 +427,13 @@ SUCCESS CRITERIA
 
 Phase 1 Success Criteria:
 ✅ HTTPS accessible on configured port
-✅ All API endpoints work over SSL
+✅ All API endpoints work over TLS
 ✅ No certificate warnings (self-signed acceptable)
 ✅ Performance within acceptable limits
 ✅ All tests pass
 
 Phase 2 Success Criteria:
-✅ Trusted SSL certificate installed
+✅ Trusted TLS certificate installed
 ✅ Automatic HTTPS redirect working
 ✅ Security headers properly configured
 ✅ Certificate auto-renewal functional
@@ -446,8 +446,8 @@ This implementation addresses:
 ✅ Technical Safeguards - Transmission Security
 ✅ Encryption of ePHI in transit
 ✅ Access controls via HTTPS
-✅ Integrity controls via SSL/TLS
-✅ Audit controls via SSL logs
+✅ Integrity controls via TLS
+✅ Audit controls via TLS logs
 
 Remaining HIPAA Requirements:
 ❌ Data encryption at rest

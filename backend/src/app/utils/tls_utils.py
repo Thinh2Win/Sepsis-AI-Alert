@@ -10,8 +10,8 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
-class SSLValidationError(Exception):
-    """Exception raised for SSL validation errors"""
+class TLSValidationError(Exception):
+    """Exception raised for TLS validation errors"""
     pass
 
 def validate_certificate_files(cert_path: Path, key_path: Path) -> Dict[str, Any]:
@@ -91,7 +91,7 @@ def validate_certificate_files(cert_path: Path, key_path: Path) -> Dict[str, Any
         
     except Exception as e:
         validation_result["errors"].append(f"Validation error: {str(e)}")
-        logger.error(f"SSL validation error: {str(e)}")
+        logger.error(f"TLS validation error: {str(e)}")
         
     return validation_result
 
@@ -188,33 +188,33 @@ def get_certificate_info(cert_path: Path) -> Dict[str, Any]:
         logger.error(f"Error reading certificate info: {str(e)}")
         return {"error": str(e)}
 
-def create_ssl_context(cert_file: Path, key_file: Path, ssl_version: str = "TLS") -> ssl.SSLContext:
+def create_tls_context(cert_file: Path, key_file: Path, tls_version: str = "TLS") -> ssl.SSLContext:
     """
-    Create SSL context with security best practices
+    Create TLS context with security best practices
     
     Args:
         cert_file: Path to certificate file
         key_file: Path to private key file
-        ssl_version: SSL/TLS version to use
+        tls_version: TLS version to use
         
     Returns:
-        Configured SSL context
+        Configured TLS context
         
     Raises:
-        SSLValidationError: If certificate validation fails
+        TLSValidationError: If certificate validation fails
     """
     # Validate certificates first
     validation_result = validate_certificate_files(cert_file, key_file)
     if not validation_result["valid"]:
         error_msg = "; ".join(validation_result["errors"])
-        raise SSLValidationError(f"Certificate validation failed: {error_msg}")
+        raise TLSValidationError(f"Certificate validation failed: {error_msg}")
     
     try:
-        # Create SSL context with appropriate protocol
-        if ssl_version.upper() == "TLSV1_3":
+        # Create TLS context with appropriate protocol
+        if tls_version.upper() == "TLSV1_3":
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.minimum_version = ssl.TLSVersion.TLSv1_3
-        elif ssl_version.upper() == "TLSV1_2":
+        elif tls_version.upper() == "TLSV1_2":
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.minimum_version = ssl.TLSVersion.TLSv1_2
             context.maximum_version = ssl.TLSVersion.TLSv1_2
@@ -239,12 +239,12 @@ def create_ssl_context(cert_file: Path, key_file: Path, ssl_version: str = "TLS"
         context.options |= ssl.OP_SINGLE_DH_USE
         context.options |= ssl.OP_SINGLE_ECDH_USE
         
-        logger.info(f"SSL context created successfully with {ssl_version}")
+        logger.info(f"TLS context created successfully with {tls_version}")
         return context
         
     except Exception as e:
-        logger.error(f"Error creating SSL context: {str(e)}")
-        raise SSLValidationError(f"Failed to create SSL context: {str(e)}")
+        logger.error(f"Error creating TLS context: {str(e)}")
+        raise TLSValidationError(f"Failed to create TLS context: {str(e)}")
 
 def check_certificate_expiration(cert_path: Path, warning_days: int = 30) -> Dict[str, Any]:
     """
@@ -292,9 +292,9 @@ def check_certificate_expiration(cert_path: Path, warning_days: int = 30) -> Dic
         logger.error(f"Error checking certificate expiration: {str(e)}")
         return {"status": "error", "message": str(e)}
 
-def validate_ssl_configuration(cert_path: Path, key_path: Path) -> Tuple[bool, str]:
+def validate_tls_configuration(cert_path: Path, key_path: Path) -> Tuple[bool, str]:
     """
-    Quick SSL configuration validation for startup checks
+    Quick TLS configuration validation for startup checks
     
     Args:
         cert_path: Path to certificate file
@@ -310,8 +310,8 @@ def validate_ssl_configuration(cert_path: Path, key_path: Path) -> Tuple[bool, s
             warnings = validation_result.get("warnings", [])
             if warnings:
                 warning_msg = "; ".join(warnings)
-                logger.warning(f"SSL configuration warnings: {warning_msg}")
-            return True, "SSL configuration valid"
+                logger.warning(f"TLS configuration warnings: {warning_msg}")
+            return True, "TLS configuration valid"
         else:
             error_msg = "; ".join(validation_result["errors"])
             return False, error_msg

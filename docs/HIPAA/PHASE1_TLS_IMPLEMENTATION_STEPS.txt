@@ -1,4 +1,4 @@
-PHASE 1 SSL IMPLEMENTATION DETAILED STEPS
+PHASE 1 TLS IMPLEMENTATION DETAILED STEPS
 ========================================
 
 CERTIFICATE ANALYSIS RESULTS
@@ -23,20 +23,20 @@ STEP 1: CONFIGURATION FILE UPDATES
 1.1 UPDATE backend/src/app/core/config.py
 ----------------------------------------
 CHANGES NEEDED:
-- Add SSL configuration section after existing settings
+- Add TLS configuration section after existing settings
 - Add certificate path validation
-- Add SSL-specific settings
+- Add TLS-specific settings
 
 NEW SETTINGS TO ADD:
 ```python
-# SSL/TLS Configuration
-ssl_enabled: bool = False
-ssl_cert_file: str = "public_cert.pem" 
-ssl_key_file: str = "private.pem"
-ssl_port: int = 8443
+# TLS Configuration
+tls_enabled: bool = False
+tls_cert_file: str = "public_cert.pem" 
+tls_key_file: str = "private.pem"
+tls_port: int = 8443
 force_https: bool = False
-ssl_version: str = "TLS"  # Options: TLS, TLSv1.2, TLSv1.3
-ssl_verify_mode: str = "CERT_NONE"  # Options: CERT_NONE, CERT_OPTIONAL, CERT_REQUIRED
+tls_version: str = "TLS"  # Options: TLS, TLSv1.2, TLSv1.3
+tls_verify_mode: str = "CERT_NONE"  # Options: CERT_NONE, CERT_OPTIONAL, CERT_REQUIRED
 
 # Security Configuration
 allowed_origins: list = ["http://localhost:3000", "https://localhost:8443"]
@@ -54,13 +54,13 @@ VALIDATION LOGIC TO ADD:
 -------------------
 NEW ENVIRONMENT VARIABLES:
 ```
-# SSL Configuration
-SSL_ENABLED=false
-SSL_CERT_FILE=public_cert.pem
-SSL_KEY_FILE=private.pem
-SSL_PORT=8443
+# TLS Configuration
+TLS_ENABLED=false
+TLS_CERT_FILE=public_cert.pem
+TLS_KEY_FILE=private.pem
+TLS_PORT=8443
 FORCE_HTTPS=false
-SSL_VERSION=TLS
+TLS_VERSION=TLS
 
 # Security Configuration
 ALLOWED_ORIGINS=http://localhost:3000,https://localhost:8443
@@ -75,10 +75,10 @@ STEP 2: STARTUP SCRIPT MODIFICATIONS
 --------------------------
 CHANGES NEEDED:
 
-A) ADD SSL CERTIFICATE VALIDATION FUNCTION
+A) ADD TLS CERTIFICATE VALIDATION FUNCTION
 ```python
-def validate_ssl_certificates(cert_file: str, key_file: str) -> bool:
-    """Validate SSL certificates exist and are properly paired"""
+def validate_tls_certificates(cert_file: str, key_file: str) -> bool:
+    """Validate TLS certificates exist and are properly paired"""
     # Check file existence
     # Validate certificate format
     # Check certificate/key pairing

@@ -26,14 +26,14 @@ class Settings(BaseSettings):
     token_cache_buffer_seconds: int = 60
     jwt_expiry_minutes: int = 5
     
-    # SSL/TLS Configuration
-    ssl_enabled: bool = os.getenv("SSL_ENABLED", "false").lower() == "true"
-    ssl_cert_file: str = os.getenv("SSL_CERT_FILE", "public_cert.pem")
-    ssl_key_file: str = os.getenv("SSL_KEY_FILE", "private.pem")
-    ssl_port: int = int(os.getenv("SSL_PORT", "8443"))
+    # TLS Configuration
+    tls_enabled: bool = os.getenv("TLS_ENABLED", "false").lower() == "true"
+    tls_cert_file: str = os.getenv("TLS_CERT_FILE", "public_cert.pem")
+    tls_key_file: str = os.getenv("TLS_KEY_FILE", "private.pem")
+    tls_port: int = int(os.getenv("TLS_PORT", "8443"))
     force_https: bool = os.getenv("FORCE_HTTPS", "false").lower() == "true"
-    ssl_version: str = os.getenv("SSL_VERSION", "TLS")
-    ssl_verify_mode: str = os.getenv("SSL_VERIFY_MODE", "CERT_NONE")
+    tls_version: str = os.getenv("TLS_VERSION", "TLS")
+    tls_verify_mode: str = os.getenv("TLS_VERIFY_MODE", "CERT_NONE")
     
     # Security Configuration
     secure_cookies: bool = os.getenv("SECURE_COOKIES", "false").lower() == "true"
@@ -45,21 +45,21 @@ class Settings(BaseSettings):
         origins_str = os.getenv("ALLOWED_ORIGINS")
         if origins_str:
             return [origin.strip() for origin in origins_str.split(",")]
-        return ["http://localhost:3000", "https://localhost:8443"]
+        return ["http://localhost:3000", f"https://localhost:{self.tls_port}"]
     
-    def get_ssl_cert_path(self) -> Path:
-        """Get absolute path to SSL certificate file"""
-        if Path(self.ssl_cert_file).is_absolute():
-            return Path(self.ssl_cert_file)
+    def get_tls_cert_path(self) -> Path:
+        """Get absolute path to TLS certificate file"""
+        if Path(self.tls_cert_file).is_absolute():
+            return Path(self.tls_cert_file)
         # Go up to project root from backend/src/app/core/config.py
-        return Path(__file__).parent.parent.parent.parent.parent / self.ssl_cert_file
+        return Path(__file__).parent.parent.parent.parent.parent / self.tls_cert_file
     
-    def get_ssl_key_path(self) -> Path:
-        """Get absolute path to SSL private key file"""
-        if Path(self.ssl_key_file).is_absolute():
-            return Path(self.ssl_key_file)
+    def get_tls_key_path(self) -> Path:
+        """Get absolute path to TLS private key file"""
+        if Path(self.tls_key_file).is_absolute():
+            return Path(self.tls_key_file)
         # Go up to project root from backend/src/app/core/config.py
-        return Path(__file__).parent.parent.parent.parent.parent / self.ssl_key_file
+        return Path(__file__).parent.parent.parent.parent.parent / self.tls_key_file
     
     class Config:
         env_file = ".env"

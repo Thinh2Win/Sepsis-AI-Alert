@@ -141,12 +141,12 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
-    """Enhanced health check with SSL status for monitoring"""
+    """Enhanced health check with TLS status for monitoring"""
     return {
         "status": "healthy", 
         "service": "sepsis-ai-alert",
         "version": "1.0.0",
-        "ssl_enabled": settings.ssl_enabled,
+        "tls_enabled": settings.tls_enabled,
         "timestamp": datetime.utcnow().isoformat(),
         "environment": "production" if not settings.debug else "development"
     }

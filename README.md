@@ -229,6 +229,7 @@ Sepsis-AI-Alert/
 │   │       ├── qsofa_scoring.py # qSOFA scoring algorithms
 │   │       ├── news2_scoring.py # NEWS2 scoring algorithms with 85% API call reduction
 │   │       ├── scoring_utils.py # Shared scoring utilities (DRY/KISS)
+│   │       ├── tls_utils.py     # TLS certificate validation and context creation
 │   │       └── error_handling.py # Standardized error handling
 │   └── tests/                   # Comprehensive test suite
 │       ├── conftest.py          # Pytest configuration
@@ -356,6 +357,14 @@ Sepsis-AI-Alert/
    LOG_LEVEL=INFO
    API_HOST=localhost
    API_PORT=8000
+   
+   # TLS Configuration (optional)
+   TLS_ENABLED=false
+   TLS_CERT_FILE=public_cert.pem
+   TLS_KEY_FILE=private.pem
+   TLS_PORT=8443
+   FORCE_HTTPS=false
+   TLS_VERSION=TLS
    ```
 
 5. **Set up RSA private key**
