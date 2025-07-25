@@ -31,7 +31,7 @@ NEW SETTINGS TO ADD:
 ```python
 # TLS Configuration
 tls_enabled: bool = False
-tls_cert_file: str = "public_cert.pem" 
+tls_cert_file: str = "public_cert.pem"
 tls_key_file: str = "private.pem"
 tls_port: int = 8443
 force_https: bool = False
@@ -46,7 +46,7 @@ session_timeout_minutes: int = 30
 
 VALIDATION LOGIC TO ADD:
 - Certificate file existence check
-- Private key file existence check  
+- Private key file existence check
 - Certificate/key pair validation
 - Certificate expiration warning (30 days)
 
@@ -86,41 +86,18 @@ def validate_tls_certificates(cert_file: str, key_file: str) -> bool:
     # Return validation status
 ```
 
-B) ADD SSL COMMAND BUILDING LOGIC
-```python
-def build_ssl_command(python_executable: str, backend_src_path: Path, settings: Settings) -> list:
-    """Build uvicorn command with SSL parameters if enabled"""
-    base_cmd = [
-        str(python_executable),
-        "-m", "uvicorn",
-        "main:app",
-        "--reload",
-        "--host", "0.0.0.0"
-    ]
-    
-    if settings.ssl_enabled:
-        # Add SSL-specific parameters
-        # Add certificate file paths
-        # Add SSL port
-        # Add SSL version
-    else:
-        # Add regular HTTP port
-    
-    return base_cmd
-```
-
-C) UPDATE MAIN FUNCTION FLOW
+B) UPDATE MAIN FUNCTION FLOW
 - Import settings from config
-- Perform SSL validation if enabled
+- Perform TLS validation if enabled
 - Build appropriate command (HTTP/HTTPS)
 - Display correct startup URLs
-- Enhanced error handling for SSL issues
+- Enhanced error handling for TLS issues
 
 CONSOLE OUTPUT CHANGES:
-- Show both HTTP and HTTPS URLs when SSL enabled
+- Show both HTTP and HTTPS URLs when TLS enabled
 - Display certificate information
 - Show certificate expiration date
-- SSL-specific error messages
+- TLS-specific error messages
 
 STEP 3: FASTAPI APPLICATION UPDATES
 ===================================
@@ -144,7 +121,7 @@ if settings.force_https:
 
 # Add Trusted Host Middleware
 app.add_middleware(
-    TrustedHostMiddleware, 
+    TrustedHostMiddleware,
     allowed_hosts=settings.allowed_origins
 )
 
@@ -169,14 +146,14 @@ D) NEW SECURITY HEADERS MIDDLEWARE
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        
+
         # Add security headers
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        
+
         return response
 ```
 
@@ -188,7 +165,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     # Log detailed error (server-side only)
     logger.error(f"Unexpected error: {str(exc)}")
     logger.error(traceback.format_exc())
-    
+
     # Return sanitized error (client-side)
     return JSONResponse(
         status_code=500,
@@ -201,9 +178,9 @@ F) HEALTH CHECK ENHANCEMENT
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
     return {
-        "status": "healthy", 
+        "status": "healthy",
         "service": "sepsis-ai-alert",
-        "ssl_enabled": settings.ssl_enabled,
+        "tls_enabled": settings.tls_enabled,
         "timestamp": datetime.utcnow().isoformat()
     }
 ```
@@ -211,7 +188,7 @@ async def health_check() -> Dict[str, Any]:
 STEP 4: CERTIFICATE VALIDATION UTILITIES
 ========================================
 
-4.1 CREATE backend/src/app/utils/ssl_utils.py
+4.1 CREATE backend/src/app/utils/tls_utils.py
 ---------------------------------------------
 NEW FILE WITH FUNCTIONS:
 
@@ -240,11 +217,11 @@ def get_certificate_info(cert_path: str) -> Dict[str, Any]:
     # Fingerprint
 ```
 
-C) SSL CONTEXT CREATION
+C) TLS CONTEXT CREATION
 ```python
-def create_ssl_context(cert_file: str, key_file: str, ssl_version: str) -> ssl.SSLContext:
-    """Create SSL context with security best practices"""
-    # Create SSL context
+def create_tls_context(cert_file: str, key_file: str, tls_version: str) -> ssl.SSLContext:
+    """Create TLS context with security best practices"""
+    # Create TLS context
     # Load certificate and key
     # Set security options
     # Disable weak protocols
@@ -269,7 +246,7 @@ COMMANDS:
 curl http://localhost:8000/health
 
 # Test certificate validation
-python -c "from app.utils.ssl_utils import validate_certificate_files; print(validate_certificate_files('public_cert.pem', 'private.pem'))"
+python -c "from app.utils.tls_utils import validate_certificate_files; print(validate_certificate_files('public_cert.pem', 'private.pem'))"
 
 # Test configuration loading
 python -c "from app.core.config import settings; print(settings)"
@@ -281,7 +258,7 @@ TESTS TO RUN:
 1. HTTPS endpoint accessibility
 2. HTTP redirect functionality (if enabled)
 3. Certificate trust validation
-4. API functionality over SSL
+4. API functionality over TLS
 5. Performance comparison
 6. Security headers verification
 
@@ -312,16 +289,16 @@ ENDPOINTS TO TEST:
 
 AUTHENTICATION TESTING:
 - JWT token generation over HTTPS
-- FHIR client connectivity with SSL
-- Token validation with SSL cookies
+- FHIR client connectivity with TLS
+- Token validation with TLS cookies
 
 STEP 6: ROLLBACK PROCEDURES
 ===========================
 
-6.1 IMMEDIATE ROLLBACK (IF SSL FAILS)
+6.1 IMMEDIATE ROLLBACK (IF TLS FAILS)
 -------------------------------------
 QUICK DISABLE STEPS:
-1. Set SSL_ENABLED=false in .env
+1. Set TLS_ENABLED=false in .env
 2. Restart server using start_server.py
 3. Verify HTTP functionality restored
 4. Document failure details for investigation
@@ -332,7 +309,7 @@ BACKUP BEFORE CHANGES:
 ```bash
 # Backup original files
 cp backend/src/app/core/config.py backend/src/app/core/config.py.backup
-cp backend/src/app/main.py backend/src/app/main.py.backup  
+cp backend/src/app/main.py backend/src/app/main.py.backup
 cp start_server.py start_server.py.backup
 cp .env .env.backup
 ```
@@ -353,25 +330,25 @@ DAY 1: CONFIGURATION UPDATES
 ----------------------------
 Morning (2-3 hours):
 - Backup current configuration files
-- Update config.py with SSL settings
-- Update .env file with SSL variables
+- Update config.py with TLS settings
+- Update .env file with TLS variables
 - Test configuration loading
 
 Afternoon (2-3 hours):
-- Create ssl_utils.py with validation functions
+- Create tls_utils.py with validation functions
 - Test certificate validation functions
 - Document configuration changes
 
 DAY 2: STARTUP SCRIPT MODIFICATIONS
 -----------------------------------
 Morning (3-4 hours):
-- Update start_server.py with SSL logic
+- Update start_server.py with TLS logic
 - Implement certificate validation
-- Add SSL command building
-- Test startup script with SSL disabled
+- Add TLS command building
+- Test startup script with TLS disabled
 
 Afternoon (2-3 hours):
-- Test startup script with SSL enabled
+- Test startup script with TLS enabled
 - Verify certificate validation works
 - Test error handling scenarios
 
@@ -388,13 +365,13 @@ Afternoon (2-3 hours):
 - Verify security headers
 - Test HTTP functionality still works
 
-DAY 4: SSL INTEGRATION AND TESTING
+DAY 4: TLS INTEGRATION AND TESTING
 ----------------------------------
 Morning (2-3 hours):
-- Enable SSL in configuration
+- Enable TLS in configuration
 - Start server with HTTPS
 - Perform basic connectivity testing
-- Debug any SSL startup issues
+- Debug any TLS startup issues
 
 Afternoon (3-4 hours):
 - Comprehensive functionality testing
@@ -427,7 +404,7 @@ PHASE 1 COMPLETION CHECKLIST:
 ✅ Security headers present in responses
 ✅ CORS policy restricts origins (no wildcards)
 ✅ Certificate expiration monitoring works
-✅ SSL validation functions work correctly
+✅ TLS validation functions work correctly
 ✅ Rollback procedures tested and documented
 ✅ Performance acceptable (< 10% degradation)
 
@@ -442,21 +419,21 @@ LIMITATIONS:
 
 RISKS:
 - Certificate expiration without warning
-- Performance impact from SSL overhead
+- Performance impact from TLS overhead
 - Potential connectivity issues with FHIR clients
 - Browser security warnings may confuse users
 
 MITIGATION STRATEGIES:
 - Certificate expiration monitoring (30-day warning)
 - Performance baseline testing before/after
-- FHIR client SSL configuration updates
+- FHIR client TLS configuration updates
 - Clear documentation about self-signed certificates
 
 STEP 10: POST-IMPLEMENTATION MONITORING
 =======================================
 
 ITEMS TO MONITOR:
-- SSL handshake success/failure rates
+- TLS handshake success/failure rates
 - Certificate expiration dates
 - HTTPS endpoint response times
 - Security header presence
@@ -472,14 +449,14 @@ openssl x509 -in public_cert.pem -noout -dates
 netstat -an | grep :8443
 
 # Check server logs for SSL errors
-tail -f logs/server.log | grep -i ssl
+tail -f logs/server.log | grep -i tls
 ```
 
 STEP 11: PREPARATION FOR PHASE 2
 ================================
 
 PHASE 2 PREREQUISITES (POST PHASE 1):
-- Phase 1 SSL implementation working
+- Phase 1 TLS implementation working
 - Domain name acquired
 - DNS configuration access
 - Let's Encrypt account setup
@@ -493,4 +470,4 @@ DOCUMENTATION UPDATES NEEDED:
 - Troubleshooting guides
 - Security compliance documentation
 
-This completes the detailed Phase 1 implementation plan. Each step is designed to be simple, testable, and reversible to minimize risk and ensure successful SSL implementation.
+This completes the detailed Phase 1 implementation plan. Each step is designed to be simple, testable, and reversible to minimize risk and ensure successful TLS implementation.
