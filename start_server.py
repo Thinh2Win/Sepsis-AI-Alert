@@ -48,8 +48,6 @@ def validate_tls_certificates(cert_file: str, key_file: str) -> bool:
             print(f"ERROR: TLS validation failed: {error_message}")
             return False
         
-        print("SUCCESS: TLS certificates validated")
-        
         return True
         
     except Exception as e:

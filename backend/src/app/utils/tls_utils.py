@@ -2,7 +2,7 @@ import ssl
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import cryptography.x509
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -61,11 +61,11 @@ def validate_certificate_files(cert_path: Path, key_path: Path) -> Dict[str, Any
             validation_result["cert_info"] = _extract_certificate_info(cert)
             
             # Check certificate expiration
-            now = datetime.utcnow()
-            if cert.not_valid_after < now:
-                validation_result["errors"].append(f"Certificate expired on {cert.not_valid_after}")
-            elif cert.not_valid_after < now + timedelta(days=30):
-                validation_result["warnings"].append(f"Certificate expires soon: {cert.not_valid_after}")
+            now = datetime.now(timezone.utc)
+            if cert.not_valid_after_utc < now:
+                validation_result["errors"].append(f"Certificate expired on {cert.not_valid_after_utc}")
+            elif cert.not_valid_after_utc < now + timedelta(days=30):
+                validation_result["warnings"].append(f"Certificate expires soon: {cert.not_valid_after_utc}")
                 
         except Exception as e:
             validation_result["errors"].append(f"Invalid certificate format: {str(e)}")
@@ -105,8 +105,8 @@ def _extract_certificate_info(cert: cryptography.x509.Certificate) -> Dict[str, 
             "subject": subject,
             "issuer": issuer,
             "serial_number": str(cert.serial_number),
-            "not_valid_before": cert.not_valid_before,
-            "not_valid_after": cert.not_valid_after,
+            "not_valid_before": cert.not_valid_before_utc,
+            "not_valid_after": cert.not_valid_after_utc,
             "signature_algorithm": cert.signature_algorithm_oid._name,
             "public_key_size": cert.public_key().key_size if hasattr(cert.public_key(), 'key_size') else None,
             "public_key_type": type(cert.public_key()).__name__,
