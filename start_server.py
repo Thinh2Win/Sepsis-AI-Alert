@@ -39,9 +39,7 @@ def validate_tls_certificates(cert_file: str, key_file: str) -> bool:
         if not key_path.is_absolute():
             key_path = Path(__file__).parent / key_file
         
-        print(f"Validating TLS certificates...")
-        print(f"Certificate: {cert_path}")
-        print(f"Private key: {key_path}")
+        print("Validating TLS certificates...")
         
         # Validate TLS configuration
         is_valid, error_message = validate_tls_configuration(cert_path, key_path)
@@ -50,13 +48,7 @@ def validate_tls_certificates(cert_file: str, key_file: str) -> bool:
             print(f"ERROR: TLS validation failed: {error_message}")
             return False
         
-        # Get certificate information for display
-        cert_info = get_certificate_info(cert_path)
-        if "error" not in cert_info:
-            print("SUCCESS: TLS certificates validated")
-            print(f"Certificate subject: {cert_info.get('subject', 'Unknown')}")
-            print(f"Valid until: {cert_info.get('not_valid_after', 'Unknown')}")
-            print(f"Key size: {cert_info.get('public_key_size', 'Unknown')} bits")
+        print("SUCCESS: TLS certificates validated")
         
         return True
         
@@ -65,53 +57,44 @@ def validate_tls_certificates(cert_file: str, key_file: str) -> bool:
         return False
 
 
-def build_uvicorn_command(python_executable: Path, use_tls: bool = False) -> list:
-    """Build uvicorn command with appropriate parameters"""
+def build_uvicorn_command(python_executable: Path) -> list:
+    """Build uvicorn command for HTTPS server"""
+    
+    if not CONFIG_AVAILABLE:
+        raise RuntimeError("Configuration not available - cannot start HTTPS server")
+    
+    cert_path = settings.get_tls_cert_path()
+    key_path = settings.get_tls_key_path()
     
     base_cmd = [
         str(python_executable),
         "-m", "uvicorn",
         "main:app",
         "--reload",
-        "--host", "0.0.0.0"
+        "--host", "0.0.0.0",
+        "--port", str(settings.tls_port),
+        "--ssl-keyfile", str(key_path),
+        "--ssl-certfile", str(cert_path)
     ]
     
-    if use_tls and CONFIG_AVAILABLE:
-        # Add TLS parameters
-        cert_path = settings.get_tls_cert_path()
-        key_path = settings.get_tls_key_path()
-        
-        base_cmd.extend([
-            "--port", str(settings.tls_port),
-            "--ssl-keyfile", str(key_path),
-            "--ssl-certfile", str(cert_path)
-        ])
-        
-        # Add TLS version if specified
-        if settings.tls_version and settings.tls_version.upper() in ["TLSV1_2", "TLSV1_3"]:
-            base_cmd.extend(["--ssl-version", settings.tls_version.lower()])
-    else:
-        # Regular HTTP
-        base_cmd.extend(["--port", "8000"])
+    # Add TLS version if specified
+    if settings.tls_version and settings.tls_version.upper() in ["TLSV1_2", "TLSV1_3"]:
+        base_cmd.extend(["--ssl-version", settings.tls_version.lower()])
     
     return base_cmd
 
 
-def display_server_info(use_tls: bool = False):
-    """Display server startup information"""
-    if use_tls and CONFIG_AVAILABLE:
-        port = settings.tls_port
-        protocol = "https"
-        print(f"Server will be available at: {protocol}://localhost:{port}")
-        print(f"API documentation at: {protocol}://localhost:{port}/docs")
-        print("NOTE: Self-signed certificate will show browser security warnings")
-        if not settings.force_https:
-            print("HTTP fallback available at: http://localhost:8000")
-    else:
-        port = 8000
-        protocol = "http"
-        print(f"Server will be available at: {protocol}://localhost:{port}")
-        print(f"API documentation at: {protocol}://localhost:{port}/docs")
+def display_server_info():
+    """Display HTTPS server startup information"""
+    if not CONFIG_AVAILABLE:
+        print("ERROR: Configuration not available")
+        return
+    
+    port = settings.tls_port
+    print(f"Server will be available at: https://localhost:{port}")
+    print(f"API documentation at: https://localhost:{port}/api/docs")
+    print("NOTE: Self-signed certificate will show browser security warnings")
+    print("INFO: HTTPS enforced for Auth0 JWT token security")
 
 
 def main():
@@ -153,20 +136,22 @@ def main():
     print("SUCCESS: Virtual environment found")
     print("SUCCESS: FastAPI application found")
     
-    # Determine TLS usage
-    use_tls = False
-    if CONFIG_AVAILABLE and settings.tls_enabled:
-        print("TLS enabled in configuration - validating certificates...")
-        if validate_tls_certificates(settings.tls_cert_file, settings.tls_key_file):
-            use_tls = True
-            print("SUCCESS: TLS certificates validated - starting HTTPS server")
-        else:
-            print("ERROR: TLS validation failed - falling back to HTTP")
-            use_tls = False
-    elif CONFIG_AVAILABLE:
-        print("TLS disabled in configuration - starting HTTP server")
-    else:
-        print("Configuration unavailable - starting HTTP server")
+    # Validate TLS configuration
+    if not CONFIG_AVAILABLE:
+        print("ERROR: Configuration not available - cannot start HTTPS server")
+        return 1
+    
+    if not settings.tls_enabled:
+        print("ERROR: TLS is disabled - HTTPS server requires TLS_ENABLED=true")
+        return 1
+    
+    print("TLS enabled in configuration - validating certificates...")
+    if not validate_tls_certificates(settings.tls_cert_file, settings.tls_key_file):
+        print("ERROR: TLS validation failed - cannot start HTTPS server")
+        print("Please ensure valid TLS certificates are configured")
+        return 1
+    
+    print("SUCCESS: TLS certificates validated - starting HTTPS server")
     
     print("Starting uvicorn server...")
     
@@ -174,15 +159,12 @@ def main():
     backend_src_path = project_root / "backend" / "src"
     
     # Build command
-    cmd = build_uvicorn_command(python_executable, use_tls)
+    cmd = build_uvicorn_command(python_executable)
     
     # Start the server using the virtual environment's Python
     try:
-        print(f"Running command: {' '.join(cmd)}")
-        print(f"Working directory: {backend_src_path}")
-        
         # Display server information
-        display_server_info(use_tls)
+        display_server_info()
         
         print("Press Ctrl+C to stop the server")
         print("-" * 50)
@@ -197,9 +179,8 @@ def main():
         return result.returncode
         
     except subprocess.CalledProcessError as e:
-        print(f"ERROR: Error starting server: {e}")
-        if use_tls:
-            print("Hint: Try disabling TLS (set TLS_ENABLED=false in .env) if TLS issues persist")
+        print(f"ERROR: Error starting HTTPS server: {e}")
+        print("Check TLS certificate configuration if server fails to start")
         return 1
     except KeyboardInterrupt:
         print("\nServer stopped by user")

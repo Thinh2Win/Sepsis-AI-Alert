@@ -7,17 +7,21 @@ This document provides comprehensive API documentation for the Sepsis AI Alert S
 ## Base URL
 
 ```
-http://localhost:8000/api/v1/sepsis-alert
+https://localhost:8443/api/v1/sepsis-alert
 ```
 
 ## Authentication
 
-All endpoints require OAuth2 JWT authentication with Epic FHIR:
+All endpoints require Auth0 JWT authentication:
 
 ```
-Authorization: Bearer <token>
-Accept: application/fhir+json
+Authorization: Bearer <auth0_jwt_token>
+Content-Type: application/json
 ```
+
+**Note**: The system uses dual authentication:
+- **Inbound**: Auth0 JWT tokens protect all API endpoints
+- **Outbound**: Epic OAuth2 JWT for FHIR data access (handled internally)
 
 ---
 
@@ -71,7 +75,7 @@ Accept: application/fhir+json
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -180,7 +184,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/match" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/match" \
   -H "Content-Type: application/json" \
   -d '{
     "given": "Theodore",
@@ -320,7 +324,7 @@ curl -X POST \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/vitals?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z&vital_type=HR" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/vitals?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z&vital_type=HR" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -418,7 +422,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/vitals/latest" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/vitals/latest" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -634,7 +638,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/labs?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z&lab_category=CBC" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/labs?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z&lab_category=CBC" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -709,7 +713,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/labs/critical" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/labs/critical" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -780,7 +784,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/encounter" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/encounter" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -843,7 +847,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/conditions" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/conditions" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -942,7 +946,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/medications?medication_type=ANTIBIOTICS" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/medications?medication_type=ANTIBIOTICS" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -1036,7 +1040,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/fluid-balance?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/fluid-balance?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJRUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -1229,7 +1233,7 @@ All three scoring systems are calculated by default to provide comprehensive cli
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/sepsis-score?include_parameters=true&timestamp=2024-01-01T12:00:00Z" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/sepsis-score?include_parameters=true&timestamp=2024-01-01T12:00:00Z" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -1378,7 +1382,7 @@ curl -X GET \
 **High-Risk Patient (Critical Sepsis):**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/sepsis-score-direct" \
   -H "Content-Type: application/json" \
   -d '{
     "patient_id": "high-risk-001",
@@ -1399,7 +1403,7 @@ curl -X POST \
 **Normal Patient (Low Risk):**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/sepsis-score-direct" \
   -H "Content-Type: application/json" \
   -d '{
     "patient_id": "normal-001",
@@ -1416,7 +1420,7 @@ curl -X POST \
 **Minimal Parameters (Emergency Scenario):**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/sepsis-score-direct" \
   -H "Content-Type: application/json" \
   -d '{
     "patient_id": "emergency-001",
@@ -1572,7 +1576,7 @@ When parameters are not provided, the system applies clinically appropriate defa
 **Example:**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/batch-sepsis-scores" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/batch-sepsis-scores" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -d '{

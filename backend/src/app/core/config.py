@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     tls_cert_file: str = os.getenv("TLS_CERT_FILE", "public_cert.pem")
     tls_key_file: str = os.getenv("TLS_KEY_FILE", "private.pem")
     tls_port: int = int(os.getenv("TLS_PORT", "8443"))
-    force_https: bool = os.getenv("FORCE_HTTPS", "false").lower() == "true"
+    force_https: bool = os.getenv("FORCE_HTTPS", "true").lower() == "true"
     tls_version: str = os.getenv("TLS_VERSION", "TLS")
     tls_verify_mode: str = os.getenv("TLS_VERIFY_MODE", "CERT_NONE")
     

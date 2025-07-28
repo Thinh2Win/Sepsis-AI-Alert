@@ -30,8 +30,9 @@ For manual activation (if needed):
 #### Core (`app/core/`)
 - **main.py**: FastAPI application setup
 - **config.py**: Environment settings management
+- **auth.py**: Auth0 JWT verification middleware
 - **exceptions.py**: Custom exception classes
-- **middleware.py**: Request logging
+- **middleware.py**: Request logging and Auth0 authentication
 - **loinc_codes.py**: Clinical code mappings
 
 #### Models (`app/models/`)
@@ -44,7 +45,7 @@ For manual activation (if needed):
 - **news2.py**: NEWS2 scoring models
 
 #### Services (`app/services/`)
-- **auth_client.py**: OAuth2 JWT authentication
+- **auth_client.py**: Epic OAuth2 JWT authentication for FHIR access
 - **fhir_client.py**: FHIR R4 client
 - **sepsis_scoring_service.py**: Scoring calculations
 - **sepsis_response_builder.py**: Response building
@@ -61,7 +62,7 @@ For manual activation (if needed):
 
 - **FastAPI**: Web framework
 - **pydantic**: Data validation
-- **python-jose**: JWT authentication
+- **python-jose**: JWT authentication (Auth0 + Epic)
 - **uvicorn**: ASGI server
 - **tenacity**: Retry logic
 - **requests**: HTTP client
@@ -79,10 +80,32 @@ The system integrates with Epic FHIR R4 APIs for:
 ### Configuration
 
 Environment variables in `backend/src/.env`:
+
+#### Epic FHIR Authentication
 - **CLIENT_ID**: Epic app client identifier
 - **TOKEN_URL**: OAuth2 token endpoint
 - **PRIVATE_KEY_PATH**: RSA private key path
 - **FHIR_API_BASE**: FHIR API base URL
+
+#### Auth0 Authentication
+- **AUTH0_DOMAIN**: Auth0 domain for JWT verification
+- **AUTH0_API_AUDIENCE**: Auth0 API audience identifier
+
+## Dual Authentication System
+
+The system implements two authentication layers:
+
+### Inbound API Protection (Auth0)
+- **Purpose**: Protects FastAPI endpoints from unauthorized access
+- **Implementation**: Global middleware in `auth.py` and `middleware.py`
+- **Token Source**: Auth0 JWT tokens in Authorization header
+- **Scope**: All API endpoints require valid Auth0 JWT
+
+### Outbound FHIR Access (Epic OAuth2)
+- **Purpose**: Authenticates with Epic FHIR sandbox for patient data
+- **Implementation**: `auth_client.py` service for token management
+- **Token Source**: Client credentials flow with RSA JWT assertion
+- **Scope**: FHIR API calls to Epic sandbox
 
 ## Scoring Systems
 

@@ -23,6 +23,8 @@ logging.basicConfig(
 
 # Set selective log levels to reduce noise and protect PHI
 logging.getLogger('app.services.fhir_client').setLevel(logging.WARNING)  # Reduce FHIR noise
+logging.getLogger('app.services.auth_client').setLevel(logging.WARNING)  # Reduce auth token noise
+logging.getLogger('app.core.middleware').setLevel(logging.WARNING)       # Reduce request logging noise
 logging.getLogger('app.utils.scoring_utils').setLevel(logging.WARNING)   # Protect clinical data
 logging.getLogger('app.utils.qsofa_scoring').setLevel(logging.WARNING)   # Protect clinical data  
 logging.getLogger('app.utils.sofa_scoring').setLevel(logging.WARNING)    # Protect clinical data

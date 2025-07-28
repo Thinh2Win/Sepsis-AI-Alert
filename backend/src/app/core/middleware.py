@@ -13,12 +13,19 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         request_id = str(uuid.uuid4())
         start_time = time.time()
         
-        logger.info(f"Request {request_id}: {request.method} {request.url}")
+        # Log only method and path (no query params or patient IDs)
+        path = request.url.path
+        logger.debug(f"Request {request_id}: {request.method} {path}")
         
         response = await call_next(request)
         
         process_time = time.time() - start_time
-        logger.info(f"Request {request_id}: {response.status_code} - {process_time:.3f}s")
+        
+        # Only log errors and slow requests to reduce noise
+        if response.status_code >= 400:
+            logger.warning(f"Request {request_id}: {response.status_code} - {process_time:.3f}s")
+        elif process_time > 2.0:  # Log slow requests
+            logger.info(f"Slow request {request_id}: {process_time:.3f}s")
         
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Process-Time"] = str(process_time)
