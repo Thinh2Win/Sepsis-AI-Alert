@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     token_cache_buffer_seconds: int = 60
     jwt_expiry_minutes: int = 5
     
+    # Auth0 Configuration
+    auth0_domain: str = os.getenv("AUTH0_DOMAIN", "")
+    auth0_api_audience: str = os.getenv("AUTH0_API_AUDIENCE", "")
+    
     # TLS Configuration
     tls_enabled: bool = os.getenv("TLS_ENABLED", "false").lower() == "true"
     tls_cert_file: str = os.getenv("TLS_CERT_FILE", "public_cert.pem")

@@ -11,8 +11,9 @@ from datetime import datetime
 
 from app.routers import patients, vitals, labs, clinical, sepsis_scoring
 from app.core.config import settings
-from app.core.middleware import RequestLoggingMiddleware
+from app.core.middleware import RequestLoggingMiddleware, Auth0Middleware
 from app.core.exceptions import FHIRException, AuthenticationException
+from app.core.auth import auth0_verifier
 
 # Configure logging with selective levels for HIPAA compliance
 logging.basicConfig(
@@ -88,6 +89,9 @@ app.add_middleware(
 )
 
 app.add_middleware(RequestLoggingMiddleware)
+
+# Add Auth0 JWT verification middleware (protects all endpoints)
+app.add_middleware(Auth0Middleware, auth0_verifier=auth0_verifier)
 
 @app.exception_handler(FHIRException)
 async def fhir_exception_handler(request: Request, exc: FHIRException):
