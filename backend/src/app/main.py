@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
@@ -124,6 +124,31 @@ async def auth_exception_handler(request: Request, exc: AuthenticationException)
         content={
             "error": "AUTH_ERROR", 
             "message": "Authentication required",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Enhanced handler for HTTP exceptions including 403 permission denials"""
+    
+    # Log permission denials and other HTTP errors appropriately
+    if exc.status_code == 403:
+        # Get user info for audit (no PHI)
+        user_payload = getattr(request.state, 'user', {})
+        user_id = user_payload.get('sub', 'unknown')
+        sanitized_path = request.url.path.replace('/patients/', '/patients/***') if '/patients/' in request.url.path else request.url.path
+        
+        logger.warning(f"PERMISSION_DENIED: user={user_id} endpoint={sanitized_path} status=403")
+    elif exc.status_code >= 400:
+        logger.warning(f"HTTP error {exc.status_code} for {request.url.path}: {exc.detail}")
+    
+    # Return consistent error format
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": f"HTTP_{exc.status_code}",
+            "message": exc.detail,
             "timestamp": datetime.utcnow().isoformat()
         }
     )
