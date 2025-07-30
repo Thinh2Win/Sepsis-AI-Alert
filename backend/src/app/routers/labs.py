@@ -4,6 +4,7 @@ from datetime import datetime
 from app.models.labs import LabResultsResponse, CriticalLabsResponse
 from app.services.fhir_client import FHIRClient
 from app.core.dependencies import get_fhir_client
+from app.core.permissions import require_permission
 
 router = APIRouter()
 
@@ -13,7 +14,8 @@ async def get_labs(
     start_date: Optional[datetime] = Query(None, description="Start date for lab results (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="End date for lab results (ISO format)"),
     lab_category: Optional[str] = Query(None, description="Lab category (CBC, METABOLIC, LIVER, INFLAMMATORY, BLOOD_GAS, COAGULATION)"),
-    fhir_client: FHIRClient = Depends(get_fhir_client)
+    fhir_client: FHIRClient = Depends(get_fhir_client),
+    _: dict = Depends(require_permission("read:phi"))
 ):
     """
     Retrieve patient laboratory results within date range with optional category filtering.
@@ -33,7 +35,8 @@ async def get_labs(
 @router.get("/patients/{patient_id}/labs/critical", response_model=CriticalLabsResponse)
 async def get_critical_labs(
     patient_id: str,
-    fhir_client: FHIRClient = Depends(get_fhir_client)
+    fhir_client: FHIRClient = Depends(get_fhir_client),
+    _: dict = Depends(require_permission("read:phi"))
 ):
     """
     Retrieve critical/abnormal lab values for patient.
