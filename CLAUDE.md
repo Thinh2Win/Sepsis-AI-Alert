@@ -32,7 +32,8 @@ For manual activation (if needed):
 - **config.py**: Environment settings management
 - **auth.py**: Auth0 JWT verification middleware
 - **exceptions.py**: Custom exception classes
-- **middleware.py**: Request logging and Auth0 authentication
+- **middleware.py**: Request logging and Auth0 authentication with RBAC
+- **permissions.py**: RBAC permission validation system
 - **loinc_codes.py**: Clinical code mappings
 
 #### Models (`app/models/`)
@@ -91,21 +92,28 @@ Environment variables in `backend/src/.env`:
 - **AUTH0_DOMAIN**: Auth0 domain for JWT verification
 - **AUTH0_API_AUDIENCE**: Auth0 API audience identifier
 
-## Dual Authentication System
+## Dual Authentication System with RBAC
 
-The system implements two authentication layers:
+The system implements two authentication layers with role-based access control:
 
-### Inbound API Protection (Auth0)
-- **Purpose**: Protects FastAPI endpoints from unauthorized access
-- **Implementation**: Global middleware in `auth.py` and `middleware.py`
-- **Token Source**: Auth0 JWT tokens in Authorization header
-- **Scope**: All API endpoints require valid Auth0 JWT
+### Inbound API Protection (Auth0 + RBAC)
+- **Purpose**: Protects FastAPI endpoints from unauthorized access with permission validation
+- **Implementation**: Global middleware in `auth.py` and `middleware.py` + permission dependencies in `permissions.py`
+- **Token Source**: Auth0 JWT tokens with `"read:phi"` permission in Authorization header
+- **RBAC**: All clinical endpoints require `"read:phi"` permission for PHI access
+- **Scope**: All clinical API endpoints require valid Auth0 JWT with proper permissions
+- **Public Exceptions**: `/health`, `/docs`, `/redoc`, `/openapi.json` remain publicly accessible
 
 ### Outbound FHIR Access (Epic OAuth2)
 - **Purpose**: Authenticates with Epic FHIR sandbox for patient data
 - **Implementation**: `auth_client.py` service for token management
 - **Token Source**: Client credentials flow with RSA JWT assertion
 - **Scope**: FHIR API calls to Epic sandbox
+
+### HIPAA-Compliant Audit Logging
+- **PHI Protection**: All patient IDs sanitized in logs (replaced with `***`)
+- **Access Tracking**: Every PHI access attempt logged with user ID, endpoint, and result
+- **Compliance**: Structured audit trail for regulatory compliance
 
 ## Scoring Systems
 
@@ -147,6 +155,8 @@ Alternative endpoint accepts clinical parameters directly without FHIR calls for
 ### ✅ Completed
 - FastAPI application structure
 - Authentication service (OAuth2 JWT)
+- **RBAC permission system with "read:phi" validation**
+- **HIPAA-compliant audit logging with PHI sanitization**
 - FHIR client with retry logic
 - Data models and validation
 - SOFA, qSOFA, and NEWS2 scoring

@@ -12,16 +12,55 @@ https://localhost:8443/api/v1/sepsis-alert
 
 ## Authentication
 
-All endpoints require Auth0 JWT authentication:
+All clinical endpoints require Auth0 JWT authentication with proper RBAC permissions:
 
 ```
 Authorization: Bearer <auth0_jwt_token>
 Content-Type: application/json
 ```
 
-**Note**: The system uses dual authentication:
-- **Inbound**: Auth0 JWT tokens protect all API endpoints
+### **RBAC (Role-Based Access Control)**
+
+The system implements granular permission-based access control:
+
+**Required Permission**: All clinical endpoints require the `"read:phi"` permission in the JWT token.
+
+**JWT Token Structure**:
+```json
+{
+  "sub": "user_id_12345",
+  "email": "clinician@hospital.com",
+  "permissions": ["read:phi"],
+  "aud": "sepsis-ai-api",
+  "iat": 1640995200,
+  "exp": 1641081600
+}
+```
+
+**Permission Validation**:
+- JWT tokens are validated for the `"read:phi"` permission before accessing any patient data
+- Missing permissions result in `403 Forbidden` responses
+- All permission checks are audited for HIPAA compliance
+
+**Public Endpoints** (No authentication required):
+- `GET /health` - System health check
+- `GET /docs` - API documentation (Swagger UI)
+- `GET /redoc` - Alternative API documentation
+- `GET /openapi.json` - OpenAPI specification
+
+### **Dual Authentication System**
+
+The system uses dual authentication layers:
+- **Inbound**: Auth0 JWT tokens with RBAC protect all API endpoints
 - **Outbound**: Epic OAuth2 JWT for FHIR data access (handled internally)
+
+**Authentication Flow**:
+1. Client provides Auth0 JWT token in Authorization header
+2. System validates JWT signature and expiration
+3. System extracts and validates `"read:phi"` permission
+4. System logs access attempt (user ID, endpoint, result)
+5. System generates Epic OAuth2 token for FHIR access (internal)
+6. Clinical data is retrieved and returned to authorized user
 
 ---
 
@@ -1058,21 +1097,102 @@ All endpoints return standardized error responses:
 
 ```json
 {
-  "error": {
-    "code": "FHIR_ERROR",
-    "message": "Failed to retrieve patient data",
-    "details": "Patient not found in FHIR server",
-    "request_id": "uuid-string"
-  }
+  "error": "HTTP_ERROR_CODE",
+  "message": "Human-readable error message",
+  "timestamp": "ISO 8601 timestamp"
 }
 ```
 
-Common error codes:
-- `VALIDATION_ERROR`: Request validation failed
-- `AUTHENTICATION_ERROR`: Invalid or expired token
-- `FHIR_ERROR`: FHIR server error
-- `RATE_LIMIT_ERROR`: Too many requests
-- `INTERNAL_ERROR`: Internal server error
+### **Common Error Responses**
+
+**403 Forbidden - Insufficient Permissions**
+```json
+{
+  "error": "HTTP_403",
+  "message": "Access denied: Missing required permission 'read:phi'",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**401 Unauthorized - Authentication Failed**
+```json
+{
+  "error": "AUTH_ERROR", 
+  "message": "Authorization header required",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**400 Bad Request - Validation Error**
+```json
+{
+  "error": "HTTP_400",
+  "message": "Invalid patient ID format",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**404 Not Found - Resource Not Found**
+```json
+{
+  "error": "HTTP_404",
+  "message": "Patient not found",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**500 Internal Server Error**
+```json
+{
+  "error": "INTERNAL_ERROR",
+  "message": "Service temporarily unavailable",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+### **Error Code Reference**
+
+- **`HTTP_403`**: Insufficient permissions for RBAC-protected endpoints
+- **`AUTH_ERROR`**: Invalid or missing Auth0 JWT token
+- **`HTTP_400`**: Request validation failed (bad parameters, invalid format)
+- **`HTTP_404`**: Requested resource not found (patient, data)
+- **`HTTP_422`**: Unprocessable entity (parameter validation errors)
+- **`HTTP_429`**: Rate limit exceeded
+- **`FHIR_ERROR`**: FHIR server communication error
+- **`INTERNAL_ERROR`**: Internal server error (sanitized for security)
+
+### **RBAC-Specific Error Scenarios**
+
+**Missing Permission**: User lacks `"read:phi"` permission
+```bash
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{
+  "error": "HTTP_403",
+  "message": "Access denied: Missing required permission 'read:phi'",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**Invalid JWT Claims**: JWT token doesn't contain permissions
+```bash  
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{
+  "error": "HTTP_403", 
+  "message": "Access denied: User authentication required",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+### **Security Features**
+
+- **No Information Disclosure**: Error messages don't expose system internals
+- **Audit Logging**: All 403 errors are logged with user ID for compliance
+- **Consistent Format**: All errors follow the same response structure
+- **Timestamp Tracking**: ISO 8601 timestamps for error correlation
 
 ## Rate Limiting
 

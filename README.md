@@ -128,6 +128,12 @@ The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide compr
                  │ └─────────────┬───────────────────┘ │
                  │               │                     │
                  │ ┌─────────────▼───────────────────┐ │
+                 │ │      RBAC Permission Layer      │ │
+                 │ │     (permissions validation)    │ │
+                 │ │     + HIPAA Audit Logging       │ │
+                 │ └─────────────┬───────────────────┘ │
+                 │               │                     │
+                 │ ┌─────────────▼───────────────────┐ │
                  │ │       FHIR Client Service       │ │
                  │ │  (Pagination, Error Handling)   │ │
                  │ └─────────────┬───────────────────┘ │
@@ -142,11 +148,12 @@ The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide compr
                  │ │ (Scoring Algorithms & Alerts)   │ │
                  │ └─────────────┬───────────────────┘ │
                  └───────────────┼───────────────────────┘
-                                 │ REST API Endpoints
+                                 │ Protected REST API Endpoints
                                  ▼
                   ┌─────────────────────────────────────┐
                   │   Clinical Dashboard (Future)       │
                   │     React + SMART on FHIR          │
+                  │      (with RBAC Integration)        │
                   └─────────────────────────────────────┘
 ```
 
@@ -158,6 +165,7 @@ The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide compr
 * **Language & Framework**: Python 3.8+ with FastAPI
 * **FHIR Integration**: Custom FHIR R4 client with tenacity retry logic
 * **Dual Authentication**: Auth0 JWT for API protection + OAuth2 JWT for Epic FHIR sandbox
+* **RBAC Authorization**: Role-based access control with JWT permission validation
 * **Data Validation**: Pydantic models with computed fields
 * **Environment Management**: python-dotenv for configuration
 * **Dependencies**: 
@@ -167,9 +175,10 @@ The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide compr
 
 ### Key Features:
 * **Robust Error Handling**: Custom exceptions and middleware
+* **RBAC Security**: Permission-based endpoint protection with audit logging
 * **Retry Logic**: Exponential backoff for failed requests
 * **Pagination Support**: Automatic FHIR Bundle pagination
-* **Request Logging**: Comprehensive request tracking
+* **Request Logging**: Comprehensive request tracking with PHI sanitization
 * **Configuration Management**: Environment-based settings
 
 ### Future Frontend:
@@ -203,6 +212,7 @@ Sepsis-AI-Alert/
 │   │   │   ├── dependencies.py  # Dependency injection
 │   │   │   ├── exceptions.py    # Custom exceptions
 │   │   │   ├── middleware.py    # Request logging middleware
+│   │   │   ├── permissions.py   # RBAC permission validation
 │   │   │   └── loinc_codes.py   # Comprehensive LOINC mappings
 │   │   ├── models/              # Pydantic data models
 │   │   │   ├── patient.py       # Simplified patient demographics with flattened fields
@@ -575,11 +585,29 @@ The direct parameter endpoint returns **identical response format** to the FHIR-
 
 ## 🔒 Security & Compliance
 
-- **Dual Authentication System**: Auth0 JWT for API protection + OAuth2 JWT for Epic FHIR access
+### **RBAC (Role-Based Access Control)**
+- **Permission-Based Authorization**: All clinical endpoints require `"read:phi"` permission in Auth0 JWT
+- **Granular Access Control**: Fine-grained permissions for PHI (Protected Health Information) access
+- **Public Endpoint Exceptions**: Health checks and API documentation remain publicly accessible
+- **403 Forbidden Responses**: Structured error responses for insufficient permissions
+
+### **Dual Authentication System**
+- **Inbound API Protection**: Auth0 JWT with RBAC for endpoint authorization
+- **Outbound FHIR Access**: OAuth2 JWT for Epic FHIR sandbox authentication
+- **JWT Permission Extraction**: Automatic validation of user permissions from Auth0 claims
+
+### **HIPAA-Compliant Audit Logging**
+- **PHI Access Tracking**: Comprehensive audit trail for all patient data access
+- **Sanitized Logging**: Patient IDs and PHI automatically redacted from logs
+- **User Attribution**: All access attempts logged with user ID and endpoint
+- **Compliance Reporting**: Structured audit logs for regulatory compliance
+
+### **Security Features**
 - **Environment Configuration**: Sensitive data managed via environment variables
 - **Request Validation**: Comprehensive Pydantic model validation
-- **Error Handling**: Secure error responses without data leakage
-- **HIPAA Considerations**: No PHI logging, secure data processing
+- **Error Handling**: Secure error responses without data leakage or system information disclosure
+- **Data Protection**: No PHI in logs, secure data processing pipelines
+- **TLS/HTTPS**: End-to-end encryption for all API communications
 
 ---
 
