@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
@@ -11,8 +11,9 @@ from datetime import datetime
 
 from app.routers import patients, vitals, labs, clinical, sepsis_scoring
 from app.core.config import settings
-from app.core.middleware import RequestLoggingMiddleware
+from app.core.middleware import RequestLoggingMiddleware, Auth0Middleware
 from app.core.exceptions import FHIRException, AuthenticationException
+from app.core.auth import auth0_verifier
 
 # Configure logging with selective levels for HIPAA compliance
 logging.basicConfig(
@@ -22,6 +23,8 @@ logging.basicConfig(
 
 # Set selective log levels to reduce noise and protect PHI
 logging.getLogger('app.services.fhir_client').setLevel(logging.WARNING)  # Reduce FHIR noise
+logging.getLogger('app.services.auth_client').setLevel(logging.WARNING)  # Reduce auth token noise
+logging.getLogger('app.core.middleware').setLevel(logging.WARNING)       # Reduce request logging noise
 logging.getLogger('app.utils.scoring_utils').setLevel(logging.WARNING)   # Protect clinical data
 logging.getLogger('app.utils.qsofa_scoring').setLevel(logging.WARNING)   # Protect clinical data  
 logging.getLogger('app.utils.sofa_scoring').setLevel(logging.WARNING)    # Protect clinical data
@@ -89,6 +92,9 @@ app.add_middleware(
 
 app.add_middleware(RequestLoggingMiddleware)
 
+# Add Auth0 JWT verification middleware (protects all endpoints)
+app.add_middleware(Auth0Middleware, auth0_verifier=auth0_verifier)
+
 @app.exception_handler(FHIRException)
 async def fhir_exception_handler(request: Request, exc: FHIRException):
     # Log detailed error server-side (for debugging)
@@ -118,6 +124,31 @@ async def auth_exception_handler(request: Request, exc: AuthenticationException)
         content={
             "error": "AUTH_ERROR", 
             "message": "Authentication required",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Enhanced handler for HTTP exceptions including 403 permission denials"""
+    
+    # Log permission denials and other HTTP errors appropriately
+    if exc.status_code == 403:
+        # Get user info for audit (no PHI)
+        user_payload = getattr(request.state, 'user', {})
+        user_id = user_payload.get('sub', 'unknown')
+        sanitized_path = request.url.path.replace('/patients/', '/patients/***') if '/patients/' in request.url.path else request.url.path
+        
+        logger.warning(f"PERMISSION_DENIED: user={user_id} endpoint={sanitized_path} status=403")
+    elif exc.status_code >= 400:
+        logger.warning(f"HTTP error {exc.status_code} for {request.url.path}: {exc.detail}")
+    
+    # Return consistent error format
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": f"HTTP_{exc.status_code}",
+            "message": exc.detail,
             "timestamp": datetime.utcnow().isoformat()
         }
     )

@@ -7,17 +7,60 @@ This document provides comprehensive API documentation for the Sepsis AI Alert S
 ## Base URL
 
 ```
-http://localhost:8000/api/v1/sepsis-alert
+https://localhost:8443/api/v1/sepsis-alert
 ```
 
 ## Authentication
 
-All endpoints require OAuth2 JWT authentication with Epic FHIR:
+All clinical endpoints require Auth0 JWT authentication with proper RBAC permissions:
 
 ```
-Authorization: Bearer <token>
-Accept: application/fhir+json
+Authorization: Bearer <auth0_jwt_token>
+Content-Type: application/json
 ```
+
+### **RBAC (Role-Based Access Control)**
+
+The system implements granular permission-based access control:
+
+**Required Permission**: All clinical endpoints require the `"read:phi"` permission in the JWT token.
+
+**JWT Token Structure**:
+```json
+{
+  "sub": "user_id_12345",
+  "email": "clinician@hospital.com",
+  "permissions": ["read:phi"],
+  "aud": "sepsis-ai-api",
+  "iat": 1640995200,
+  "exp": 1641081600
+}
+```
+
+**Permission Validation**:
+- JWT tokens are validated for the `"read:phi"` permission before accessing any patient data
+- Missing permissions result in `403 Forbidden` responses
+- All permission checks are audited for HIPAA compliance
+
+**Public Endpoints** (No authentication required):
+- `GET /health` - System health check
+- `GET /docs` - API documentation (Swagger UI)
+- `GET /redoc` - Alternative API documentation
+- `GET /openapi.json` - OpenAPI specification
+
+### **Dual Authentication System**
+
+The system uses dual authentication layers:
+- **Inbound**: Auth0 JWT tokens with RBAC protect all API endpoints
+- **Outbound**: Epic OAuth2 JWT for FHIR data access (handled internally)
+
+**Authentication Flow**:
+1. Client provides Auth0 JWT token in Authorization header
+2. System validates JWT signature and expiration
+3. System extracts and validates `"read:phi"` permission
+4. System logs access attempt (user ID, endpoint, result)
+5. System generates Epic OAuth2 token for FHIR access (internal)
+6. Clinical data is retrieved and returned to authorized user
 
 ---
 
@@ -71,7 +114,7 @@ Accept: application/fhir+json
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -180,7 +223,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/match" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/match" \
   -H "Content-Type: application/json" \
   -d '{
     "given": "Theodore",
@@ -320,7 +363,7 @@ curl -X POST \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/vitals?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z&vital_type=HR" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/vitals?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z&vital_type=HR" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -418,7 +461,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/vitals/latest" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/vitals/latest" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -634,7 +677,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/labs?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z&lab_category=CBC" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/labs?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z&lab_category=CBC" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -709,7 +752,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/labs/critical" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/labs/critical" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -780,7 +823,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/encounter" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/encounter" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -843,7 +886,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/conditions" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/conditions" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -942,7 +985,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/medications?medication_type=ANTIBIOTICS" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/medications?medication_type=ANTIBIOTICS" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -1036,7 +1079,7 @@ curl -X GET \
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/fluid-balance?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/fluid-balance?start_date=2024-01-01T00:00:00Z&end_date=2024-01-02T00:00:00Z" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJRUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -1054,21 +1097,102 @@ All endpoints return standardized error responses:
 
 ```json
 {
-  "error": {
-    "code": "FHIR_ERROR",
-    "message": "Failed to retrieve patient data",
-    "details": "Patient not found in FHIR server",
-    "request_id": "uuid-string"
-  }
+  "error": "HTTP_ERROR_CODE",
+  "message": "Human-readable error message",
+  "timestamp": "ISO 8601 timestamp"
 }
 ```
 
-Common error codes:
-- `VALIDATION_ERROR`: Request validation failed
-- `AUTHENTICATION_ERROR`: Invalid or expired token
-- `FHIR_ERROR`: FHIR server error
-- `RATE_LIMIT_ERROR`: Too many requests
-- `INTERNAL_ERROR`: Internal server error
+### **Common Error Responses**
+
+**403 Forbidden - Insufficient Permissions**
+```json
+{
+  "error": "HTTP_403",
+  "message": "Access denied: Missing required permission 'read:phi'",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**401 Unauthorized - Authentication Failed**
+```json
+{
+  "error": "AUTH_ERROR", 
+  "message": "Authorization header required",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**400 Bad Request - Validation Error**
+```json
+{
+  "error": "HTTP_400",
+  "message": "Invalid patient ID format",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**404 Not Found - Resource Not Found**
+```json
+{
+  "error": "HTTP_404",
+  "message": "Patient not found",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**500 Internal Server Error**
+```json
+{
+  "error": "INTERNAL_ERROR",
+  "message": "Service temporarily unavailable",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+### **Error Code Reference**
+
+- **`HTTP_403`**: Insufficient permissions for RBAC-protected endpoints
+- **`AUTH_ERROR`**: Invalid or missing Auth0 JWT token
+- **`HTTP_400`**: Request validation failed (bad parameters, invalid format)
+- **`HTTP_404`**: Requested resource not found (patient, data)
+- **`HTTP_422`**: Unprocessable entity (parameter validation errors)
+- **`HTTP_429`**: Rate limit exceeded
+- **`FHIR_ERROR`**: FHIR server communication error
+- **`INTERNAL_ERROR`**: Internal server error (sanitized for security)
+
+### **RBAC-Specific Error Scenarios**
+
+**Missing Permission**: User lacks `"read:phi"` permission
+```bash
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{
+  "error": "HTTP_403",
+  "message": "Access denied: Missing required permission 'read:phi'",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**Invalid JWT Claims**: JWT token doesn't contain permissions
+```bash  
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{
+  "error": "HTTP_403", 
+  "message": "Access denied: User authentication required",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+### **Security Features**
+
+- **No Information Disclosure**: Error messages don't expose system internals
+- **Audit Logging**: All 403 errors are logged with user ID for compliance
+- **Consistent Format**: All errors follow the same response structure
+- **Timestamp Tracking**: ISO 8601 timestamps for error correlation
 
 ## Rate Limiting
 
@@ -1229,7 +1353,7 @@ All three scoring systems are calculated by default to provide comprehensive cli
 **Example:**
 ```bash
 curl -X GET \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/sepsis-score?include_parameters=true&timestamp=2024-01-01T12:00:00Z" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/e74Q2ey-kqeOCXXuE5Q4nQB/sepsis-score?include_parameters=true&timestamp=2024-01-01T12:00:00Z" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -H "Accept: application/fhir+json"
 ```
@@ -1378,7 +1502,7 @@ curl -X GET \
 **High-Risk Patient (Critical Sepsis):**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/sepsis-score-direct" \
   -H "Content-Type: application/json" \
   -d '{
     "patient_id": "high-risk-001",
@@ -1399,7 +1523,7 @@ curl -X POST \
 **Normal Patient (Low Risk):**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/sepsis-score-direct" \
   -H "Content-Type: application/json" \
   -d '{
     "patient_id": "normal-001",
@@ -1416,7 +1540,7 @@ curl -X POST \
 **Minimal Parameters (Emergency Scenario):**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/sepsis-score-direct" \
   -H "Content-Type: application/json" \
   -d '{
     "patient_id": "emergency-001",
@@ -1572,7 +1696,7 @@ When parameters are not provided, the system applies clinically appropriate defa
 **Example:**
 ```bash
 curl -X POST \
-  "http://localhost:8000/api/v1/sepsis-alert/patients/batch-sepsis-scores" \
+  "https://localhost:8443/api/v1/sepsis-alert/patients/batch-sepsis-scores" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..." \
   -d '{

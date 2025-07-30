@@ -79,7 +79,7 @@ class EpicAuthClient:
         expires_in = token_data.get('expires_in', 3600)
         self._exp = int(time.time()) + expires_in - settings.token_cache_buffer_seconds
         
-        logger.info(f"Token fetched successfully, expires in {expires_in} seconds")
+        logger.debug(f"Token fetched successfully, expires in {expires_in} seconds")
         return self._token
 
     def get_token(self) -> str:

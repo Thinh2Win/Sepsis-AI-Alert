@@ -28,7 +28,7 @@ This project showcases a practical application of Artificial Intelligence (AI) a
 
 * **Technical Objective:**
   * Leverage FHIR R4 resources to ingest, normalize, and extract features from clinical data
-  * Implement robust OAuth2 JWT authentication with Epic FHIR sandbox
+  * Implement dual authentication: Auth0 JWT for API protection + OAuth2 JWT for Epic FHIR sandbox access
   * Provide production-ready FastAPI application with proper error handling and retry logic
   * Demonstrate secure, HIPAA-compliant architecture principles
 
@@ -124,7 +124,13 @@ The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide compr
                  │        FastAPI Application          │
                  │ ┌─────────────────────────────────┐ │
                  │ │     Authentication Service      │ │
-                 │ │   (OAuth2 JWT with Retry)       │ │
+                 │ │ Auth0 (Inbound) + Epic (Outbound) │ │
+                 │ └─────────────┬───────────────────┘ │
+                 │               │                     │
+                 │ ┌─────────────▼───────────────────┐ │
+                 │ │      RBAC Permission Layer      │ │
+                 │ │     (permissions validation)    │ │
+                 │ │     + HIPAA Audit Logging       │ │
                  │ └─────────────┬───────────────────┘ │
                  │               │                     │
                  │ ┌─────────────▼───────────────────┐ │
@@ -142,11 +148,12 @@ The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide compr
                  │ │ (Scoring Algorithms & Alerts)   │ │
                  │ └─────────────┬───────────────────┘ │
                  └───────────────┼───────────────────────┘
-                                 │ REST API Endpoints
+                                 │ Protected REST API Endpoints
                                  ▼
                   ┌─────────────────────────────────────┐
                   │   Clinical Dashboard (Future)       │
                   │     React + SMART on FHIR          │
+                  │      (with RBAC Integration)        │
                   └─────────────────────────────────────┘
 ```
 
@@ -157,7 +164,8 @@ The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide compr
 ### Backend (Current Implementation):
 * **Language & Framework**: Python 3.8+ with FastAPI
 * **FHIR Integration**: Custom FHIR R4 client with tenacity retry logic
-* **Authentication**: OAuth2 JWT with Epic FHIR sandbox
+* **Dual Authentication**: Auth0 JWT for API protection + OAuth2 JWT for Epic FHIR sandbox
+* **RBAC Authorization**: Role-based access control with JWT permission validation
 * **Data Validation**: Pydantic models with computed fields
 * **Environment Management**: python-dotenv for configuration
 * **Dependencies**: 
@@ -167,9 +175,10 @@ The system intelligently combines SOFA, qSOFA, and NEWS2 scores to provide compr
 
 ### Key Features:
 * **Robust Error Handling**: Custom exceptions and middleware
+* **RBAC Security**: Permission-based endpoint protection with audit logging
 * **Retry Logic**: Exponential backoff for failed requests
 * **Pagination Support**: Automatic FHIR Bundle pagination
-* **Request Logging**: Comprehensive request tracking
+* **Request Logging**: Comprehensive request tracking with PHI sanitization
 * **Configuration Management**: Environment-based settings
 
 ### Future Frontend:
@@ -203,6 +212,7 @@ Sepsis-AI-Alert/
 │   │   │   ├── dependencies.py  # Dependency injection
 │   │   │   ├── exceptions.py    # Custom exceptions
 │   │   │   ├── middleware.py    # Request logging middleware
+│   │   │   ├── permissions.py   # RBAC permission validation
 │   │   │   └── loinc_codes.py   # Comprehensive LOINC mappings
 │   │   ├── models/              # Pydantic data models
 │   │   │   ├── patient.py       # Simplified patient demographics with flattened fields
@@ -219,7 +229,7 @@ Sepsis-AI-Alert/
 │   │   │   ├── clinical.py      # Clinical context endpoints
 │   │   │   └── sepsis_scoring.py # SOFA, qSOFA, and NEWS2 scoring endpoints
 │   │   ├── services/            # Business logic services
-│   │   │   ├── auth_client.py   # Enhanced OAuth2 JWT authentication
+│   │   │   ├── auth_client.py   # Epic OAuth2 JWT authentication for FHIR
 │   │   │   └── fhir_client.py   # Comprehensive FHIR R4 client
 │   │   └── utils/               # Utility functions
 │   │       ├── calculations.py  # Clinical calculations (age, BMI, etc.)
@@ -345,7 +355,7 @@ Sepsis-AI-Alert/
    ```
 
 4. **Configure environment variables**
-   Create `backend/src/.env` file with your Epic FHIR credentials:
+   Create `backend/src/.env` file with your Epic FHIR and Auth0 credentials:
    ```env
    # Epic FHIR Configuration
    CLIENT_ID=your_epic_client_id
@@ -353,17 +363,21 @@ Sepsis-AI-Alert/
    PRIVATE_KEY_PATH=./private.pem
    FHIR_API_BASE=https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4
    
+   # Auth0 Configuration
+   AUTH0_DOMAIN=your-domain.auth0.com
+   AUTH0_API_AUDIENCE=your-api-audience
+   
    # Application Configuration
    LOG_LEVEL=INFO
    API_HOST=localhost
    API_PORT=8000
    
-   # TLS Configuration (optional)
-   TLS_ENABLED=false
+   # TLS Configuration (required for Auth0)
+   TLS_ENABLED=true
    TLS_CERT_FILE=public_cert.pem
    TLS_KEY_FILE=private.pem
    TLS_PORT=8443
-   FORCE_HTTPS=false
+   FORCE_HTTPS=true
    TLS_VERSION=TLS
    ```
 
@@ -384,7 +398,8 @@ Sepsis-AI-Alert/
    cd backend/src
    python main.py
    # or
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   # Use the start_server.py script for HTTPS
+   python start_server.py
    ```
 
 
@@ -392,22 +407,22 @@ Sepsis-AI-Alert/
 
 1. **Health Check**
    ```bash
-   curl http://localhost:8000/health
+   curl https://localhost:8443/health
    ```
 
 2. **API Documentation**
-   - Swagger UI: `http://localhost:8000/api/docs`
+   - Swagger UI: `https://localhost:8443/api/docs`
 
 3. **Sample API Calls** (with Epic FHIR sandbox)
    ```bash
    # Get patient demographics
    curl -X GET \
-     "http://localhost:8000/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB" \
+     "https://localhost:8443/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB" \
      -H "Accept: application/json"
    
    # Match patient by demographics
    curl -X POST \
-     "http://localhost:8000/api/v1/sepsis-alert/patients/match" \
+     "https://localhost:8443/api/v1/sepsis-alert/patients/match" \
      -H "Content-Type: application/json" \
      -d '{
        "given": "Theodore",
@@ -426,17 +441,17 @@ Sepsis-AI-Alert/
    
    # Get patient vital signs
    curl -X GET \
-     "http://localhost:8000/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB/vitals/latest" \
+     "https://localhost:8443/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB/vitals/latest" \
      -H "Accept: application/json"
    
    # FHIR-based sepsis scoring (fetches data from Epic)
    curl -X GET \
-     "http://localhost:8000/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB/sepsis-score?scoring_systems=SOFA,qSOFA,NEWS2" \
+     "https://localhost:8443/api/v1/sepsis-alert/patients/eRztxMp7qoNfNGkSiB7rDuB/sepsis-score?scoring_systems=SOFA,qSOFA,NEWS2" \
      -H "Accept: application/json"
    
    # Direct parameter sepsis scoring (no FHIR calls required)
    curl -X POST \
-     "http://localhost:8000/api/v1/sepsis-alert/patients/sepsis-score-direct" \
+     "https://localhost:8443/api/v1/sepsis-alert/patients/sepsis-score-direct" \
      -H "Content-Type: application/json" \
      -d '{
        "patient_id": "direct-test-001",
@@ -570,11 +585,29 @@ The direct parameter endpoint returns **identical response format** to the FHIR-
 
 ## 🔒 Security & Compliance
 
-- **OAuth2 JWT Authentication**: Secure token-based authentication with Epic FHIR
+### **RBAC (Role-Based Access Control)**
+- **Permission-Based Authorization**: All clinical endpoints require `"read:phi"` permission in Auth0 JWT
+- **Granular Access Control**: Fine-grained permissions for PHI (Protected Health Information) access
+- **Public Endpoint Exceptions**: Health checks and API documentation remain publicly accessible
+- **403 Forbidden Responses**: Structured error responses for insufficient permissions
+
+### **Dual Authentication System**
+- **Inbound API Protection**: Auth0 JWT with RBAC for endpoint authorization
+- **Outbound FHIR Access**: OAuth2 JWT for Epic FHIR sandbox authentication
+- **JWT Permission Extraction**: Automatic validation of user permissions from Auth0 claims
+
+### **HIPAA-Compliant Audit Logging**
+- **PHI Access Tracking**: Comprehensive audit trail for all patient data access
+- **Sanitized Logging**: Patient IDs and PHI automatically redacted from logs
+- **User Attribution**: All access attempts logged with user ID and endpoint
+- **Compliance Reporting**: Structured audit logs for regulatory compliance
+
+### **Security Features**
 - **Environment Configuration**: Sensitive data managed via environment variables
 - **Request Validation**: Comprehensive Pydantic model validation
-- **Error Handling**: Secure error responses without data leakage
-- **HIPAA Considerations**: No PHI logging, secure data processing
+- **Error Handling**: Secure error responses without data leakage or system information disclosure
+- **Data Protection**: No PHI in logs, secure data processing pipelines
+- **TLS/HTTPS**: End-to-end encryption for all API communications
 
 ---
 

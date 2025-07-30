@@ -10,6 +10,7 @@ from app.models.sofa import (
 from app.services.fhir_client import FHIRClient
 from app.services.sepsis_scoring_service import SepsisScoringServiceFactory
 from app.core.dependencies import get_fhir_client
+from app.core.permissions import require_permission
 from app.utils.error_handling import (
     handle_sepsis_errors, validate_batch_request
 )
@@ -26,7 +27,8 @@ async def get_sepsis_score(
     timestamp: Optional[datetime] = Query(None, description="Target timestamp for score calculation (ISO format)"),
     include_parameters: bool = Query(False, description="Include detailed parameter data in response"),
     scoring_systems: str = Query("SOFA,qSOFA,NEWS2", description="Scoring systems to calculate (SOFA, qSOFA, NEWS2, or any combination). All three calculated by default."),
-    fhir_client: FHIRClient = Depends(get_fhir_client)
+    fhir_client: FHIRClient = Depends(get_fhir_client),
+    _: dict = Depends(require_permission("read:phi"))
 ):
     """
     Calculate sepsis assessment scores for a patient.
@@ -77,7 +79,8 @@ async def get_sepsis_score(
 @handle_sepsis_errors(operation_name="batch sepsis score calculation", include_patient_in_log=False)
 async def get_batch_sepsis_scores(
     request: BatchSepsisScoreRequest,
-    fhir_client: FHIRClient = Depends(get_fhir_client)
+    fhir_client: FHIRClient = Depends(get_fhir_client),
+    _: dict = Depends(require_permission("read:phi"))
 ):
     """
     Calculate sepsis assessment scores for multiple patients in a single request.
@@ -115,7 +118,8 @@ async def get_batch_sepsis_scores(
 @handle_sepsis_errors(operation_name="direct sepsis score calculation")
 async def calculate_direct_sepsis_score(
     request: DirectSepsisScoreRequest,
-    fhir_client: FHIRClient = Depends(get_fhir_client)
+    fhir_client: FHIRClient = Depends(get_fhir_client),
+    _: dict = Depends(require_permission("read:phi"))
 ):
     """
     Calculate sepsis assessment scores using directly provided clinical parameters.

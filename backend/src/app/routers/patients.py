@@ -3,13 +3,15 @@ from typing import Optional, List
 from app.models.patient import PatientResponse, PatientMatchRequest, PatientMatchResponse
 from app.services.fhir_client import FHIRClient
 from app.core.dependencies import get_fhir_client
+from app.core.permissions import require_permission
 
 router = APIRouter()
 
 @router.get("/patients/{patient_id}", response_model=PatientResponse)
 async def get_patient(
     patient_id: str,
-    fhir_client: FHIRClient = Depends(get_fhir_client)
+    fhir_client: FHIRClient = Depends(get_fhir_client),
+    _: dict = Depends(require_permission("read:phi"))
 ):
     """Retrieve patient demographics and basic information"""
     return await fhir_client.get_patient(patient_id)
@@ -17,7 +19,8 @@ async def get_patient(
 @router.post("/patients/match", response_model=PatientMatchResponse)
 async def match_patient(
     match_request: PatientMatchRequest,
-    fhir_client: FHIRClient = Depends(get_fhir_client)
+    fhir_client: FHIRClient = Depends(get_fhir_client),
+    _: dict = Depends(require_permission("read:phi"))
 ):
     """Match patient using demographics"""
     return await fhir_client.match_patient(match_request)

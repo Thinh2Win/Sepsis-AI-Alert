@@ -4,6 +4,7 @@ from datetime import datetime
 from app.models.vitals import VitalSignsResponse, VitalSignsLatestResponse
 from app.services.fhir_client import FHIRClient
 from app.core.dependencies import get_fhir_client
+from app.core.permissions import require_permission
 
 router = APIRouter()
 
@@ -13,7 +14,8 @@ async def get_vitals(
     start_date: Optional[datetime] = Query(None, description="Start date for vital signs (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="End date for vital signs (ISO format)"),
     vital_type: Optional[str] = Query(None, description="Specific vital sign type (HR, BP, TEMP, RR, SPO2, GCS)"),
-    fhir_client: FHIRClient = Depends(get_fhir_client)
+    fhir_client: FHIRClient = Depends(get_fhir_client),
+    _: dict = Depends(require_permission("read:phi"))
 ):
     """
     Retrieve patient vital signs within date range with optional filtering by vital type.
@@ -33,7 +35,8 @@ async def get_vitals(
 @router.get("/patients/{patient_id}/vitals/latest", response_model=VitalSignsLatestResponse)
 async def get_latest_vitals(
     patient_id: str,
-    fhir_client: FHIRClient = Depends(get_fhir_client)
+    fhir_client: FHIRClient = Depends(get_fhir_client),
+    _: dict = Depends(require_permission("read:phi"))
 ):
     """
     Retrieve most recent vital signs for patient (latest value for each vital sign type).
