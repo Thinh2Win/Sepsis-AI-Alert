@@ -13,6 +13,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional, Literal
 import random
+import os
 
 # API Features from the sepsis alert system
 API_FEATURES = [
@@ -501,7 +502,7 @@ def main():
     )
     
     # Save dataset
-    output_path = "C:/Users/Thinh2Win/Documents/PersonalProjects/Sepsis-AI-Alert/backend/src/app/ml/enhanced_synthetic_sepsis_data.csv"
+    output_path = os.path.join(os.path.dirname(__file__), "enhanced_synthetic_sepsis_data.csv")
     generator.save_dataset(df, output_path)
 
 
