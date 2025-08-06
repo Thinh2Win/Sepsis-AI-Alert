@@ -437,39 +437,152 @@ class EnhancedSepsisDataGenerator:
         Returns:
             DataFrame with all patient records
         """
-        all_records = []
-        
-        print(f"Generating enhanced dataset with {n_patients} patients...")
-        
-        for i in range(n_patients):
-            patient_id = f"patient_{i:05d}"
-            hours = np.random.randint(hours_range[0], hours_range[1] + 1)
+        try:
+            # Validate inputs
+            if n_patients <= 0:
+                raise ValueError("Number of patients must be positive")
+            if hours_range[0] <= 0 or hours_range[1] <= hours_range[0]:
+                raise ValueError("Invalid hours range")
             
-            patient_data = self.simulate_patient_progression(patient_id, hours)
-            all_records.extend(patient_data)
+            all_records = []
             
-            if (i + 1) % 100 == 0:
-                print(f"Generated {i + 1}/{n_patients} patients")
+            print(f"Generating enhanced dataset with {n_patients} patients...")
+            
+            for i in range(n_patients):
+                try:
+                    patient_id = f"patient_{i:05d}"
+                    hours = np.random.randint(hours_range[0], hours_range[1] + 1)
+                    
+                    patient_data = self.simulate_patient_progression(patient_id, hours)
+                    all_records.extend(patient_data)
+                except Exception as e:
+                    print(f"Warning: Failed to generate patient {i}: {str(e)}")
+                    continue  # Skip this patient and continue
+            
+                if (i + 1) % 100 == 0:
+                    print(f"Generated {i + 1}/{n_patients} patients")
         
-        # Create DataFrame
-        df = pd.DataFrame(all_records)
+            # Create DataFrame
+            if not all_records:
+                raise ValueError("No patient data was successfully generated")
+                
+            df = pd.DataFrame(all_records)
+            
+            # Ensure column order: metadata + API features
+            metadata_cols = ["patient_id", "timestamp", "sepsis_label", "sepsis_progression", "hours_from_start"]
+            column_order = metadata_cols + API_FEATURES
+            df = df[column_order]
+            
+            # Summary statistics
+            sepsis_patients = df.groupby('patient_id')['sepsis_label'].max().sum()
+            sepsis_records = df['sepsis_label'].sum()
+            
+            print(f"\nEnhanced dataset generated:")
+            print(f"Total records: {len(df)}")
+            print(f"Unique patients: {df['patient_id'].nunique()}")
+            print(f"Patients with sepsis: {sepsis_patients} ({sepsis_patients/df['patient_id'].nunique():.1%})")
+            print(f"Sepsis-positive records: {sepsis_records} ({sepsis_records/len(df):.1%})")
+            
+            return df
+            
+        except Exception as e:
+            print(f"Error generating dataset: {str(e)}")
+            raise RuntimeError(f"Dataset generation failed: {str(e)}")
+    
+    def validate_synthetic_labels_against_clinical_scores(self, df: pd.DataFrame) -> Dict:
+        """
+        Validate synthetic sepsis labels against actual clinical scoring systems.
         
-        # Ensure column order: metadata + API features
-        metadata_cols = ["patient_id", "timestamp", "sepsis_label", "sepsis_progression", "hours_from_start"]
-        column_order = metadata_cols + API_FEATURES
-        df = df[column_order]
+        This method helps identify potential circular logic by comparing our
+        synthetic labels with what the actual clinical systems would predict.
         
-        # Summary statistics
-        sepsis_patients = df.groupby('patient_id')['sepsis_label'].max().sum()
-        sepsis_records = df['sepsis_label'].sum()
-        
-        print(f"\nEnhanced dataset generated:")
-        print(f"Total records: {len(df)}")
-        print(f"Unique patients: {df['patient_id'].nunique()}")
-        print(f"Patients with sepsis: {sepsis_patients} ({sepsis_patients/n_patients:.1%})")
-        print(f"Sepsis-positive records: {sepsis_records} ({sepsis_records/len(df):.1%})")
-        
-        return df
+        Args:
+            df: Generated synthetic dataset
+            
+        Returns:
+            Validation results and discrepancy analysis
+        """
+        try:
+            from .clinical_validator import ClinicalScoreValidator
+            
+            # Initialize clinical validator
+            validator = ClinicalScoreValidator()
+            
+            # Calculate actual clinical scores from raw synthetic data
+            clinical_data = df.drop(['patient_id', 'timestamp', 'sepsis_label', 
+                                   'sepsis_progression', 'hours_from_start'], axis=1)
+            
+            traditional_scores = validator.calculate_traditional_scores_from_raw_data(clinical_data)
+            
+            # Compare synthetic labels with clinical score predictions
+            sofa_binary = (np.array(traditional_scores['sofa_scores']) >= 2).astype(int)
+            qsofa_binary = (np.array(traditional_scores['qsofa_scores']) >= 2).astype(int)
+            news2_binary = (np.array(traditional_scores['news2_scores']) >= 5).astype(int)
+            
+            synthetic_labels = df['sepsis_label'].values
+            
+            # Calculate agreement rates
+            sofa_agreement = np.mean(synthetic_labels == sofa_binary)
+            qsofa_agreement = np.mean(synthetic_labels == qsofa_binary)
+            news2_agreement = np.mean(synthetic_labels == news2_binary)
+            
+            # Identify discrepancies
+            sofa_discrepancy = np.sum(synthetic_labels != sofa_binary) / len(synthetic_labels)
+            qsofa_discrepancy = np.sum(synthetic_labels != qsofa_binary) / len(synthetic_labels)
+            news2_discrepancy = np.sum(synthetic_labels != news2_binary) / len(synthetic_labels)
+            
+            validation_results = {
+                'total_records': len(df),
+                'synthetic_sepsis_rate': df['sepsis_label'].mean(),
+                'clinical_score_agreement': {
+                    'sofa_agreement': sofa_agreement,
+                    'qsofa_agreement': qsofa_agreement,
+                    'news2_agreement': news2_agreement
+                },
+                'clinical_score_discrepancy': {
+                    'sofa_discrepancy': sofa_discrepancy,
+                    'qsofa_discrepancy': qsofa_discrepancy,
+                    'news2_discrepancy': news2_discrepancy
+                },
+                'traditional_scores_summary': {
+                    'sofa_mean': traditional_scores['sofa_mean'],
+                    'qsofa_mean': traditional_scores['qsofa_mean'],
+                    'news2_mean': traditional_scores['news2_mean']
+                },
+                'validation_status': 'COMPLETED'
+            }
+            
+            print(f"\nSynthetic Data Validation Results:")
+            print(f"  Synthetic sepsis rate: {validation_results['synthetic_sepsis_rate']:.1%}")
+            print(f"  Agreement with SOFA ≥2: {sofa_agreement:.1%}")
+            print(f"  Agreement with qSOFA ≥2: {qsofa_agreement:.1%}")
+            print(f"  Agreement with NEWS2 ≥5: {news2_agreement:.1%}")
+            
+            # Assess validation quality
+            avg_agreement = np.mean([sofa_agreement, qsofa_agreement, news2_agreement])
+            if avg_agreement >= 0.7:
+                print(f"  ✅ VALIDATION PASSED: Good agreement ({avg_agreement:.1%}) with clinical scores")
+            elif avg_agreement >= 0.5:
+                print(f"  ⚠️  VALIDATION WARNING: Moderate agreement ({avg_agreement:.1%}) - review needed")
+            else:
+                print(f"  ❌ VALIDATION FAILED: Poor agreement ({avg_agreement:.1%}) - major discrepancies")
+            
+            validation_results['overall_agreement'] = avg_agreement
+            validation_results['validation_quality'] = (
+                'PASSED' if avg_agreement >= 0.7 else 
+                'WARNING' if avg_agreement >= 0.5 else 
+                'FAILED'
+            )
+            
+            return validation_results
+            
+        except Exception as e:
+            print(f"Warning: Clinical score validation failed: {str(e)}")
+            return {
+                'validation_status': 'FAILED',
+                'error': str(e),
+                'message': 'Could not validate synthetic labels against clinical scores'
+            }
     
     def save_dataset(self, df: pd.DataFrame, filepath: str):
         """Save enhanced dataset with summary statistics."""

@@ -1,0 +1,470 @@
+{
+  "model_version": "1.0.0",
+  "training_timestamp": "2025-08-04T14:08:24.308369",
+  "training_metadata": {
+    "n_patients": 50,
+    "n_records": 632,
+    "time_window_hours": 48,
+    "sepsis_incidence": 0.17721518987341772,
+    "feature_count": 76,
+    "generation_timestamp": "2025-08-04T14:08:24.308369"
+  },
+  "evaluation_results": {
+    "ml_metrics": {
+      "auc_roc": 0.979669887278583,
+      "precision": 1.0,
+      "recall": 0.8260869565217391,
+      "f1_score": 0.9047619047619048,
+      "confusion_matrix": [
+        [
+          108,
+          0
+        ],
+        [
+          4,
+          19
+        ]
+      ]
+    },
+    "clinical_metrics": {
+      "sensitivity": 0.8260869565217391,
+      "specificity": 1.0,
+      "ppv": 1.0,
+      "npv": 0.9642857142857143,
+      "accuracy": 0.9694656488549618
+    },
+    "traditional_comparison": {
+      "qsofa_auc": 0.9120370370370371,
+      "sofa_auc": 0.9557165861513688,
+      "news2_auc": 0.9178743961352657,
+      "ml_improvement_vs_qsofa": 0.06763285024154586,
+      "ml_improvement_vs_sofa": 0.023953301127214166,
+      "ml_improvement_vs_news2": 0.06179549114331728,
+      "qsofa_mean_score": 0.3893129770992366,
+      "sofa_mean_score": 1.7251908396946565,
+      "news2_mean_score": 1.1450381679389312
+    },
+    "feature_analysis": {
+      "top_features": [
+        {
+          "feature": "qsofa_score",
+          "importance": 0.3983016610145569
+        },
+        {
+          "feature": "oxygenation_index",
+          "importance": 0.3304983377456665
+        },
+        {
+          "feature": "respiratory_support_score",
+          "importance": 0.13931086659431458
+        },
+        {
+          "feature": "pf_ratio",
+          "importance": 0.02944057807326317
+        },
+        {
+          "feature": "modified_shock_index",
+          "importance": 0.02078835852444172
+        },
+        {
+          "feature": "shock_index",
+          "importance": 0.014677910134196281
+        },
+        {
+          "feature": "platelets",
+          "importance": 0.012286260724067688
+        },
+        {
+          "feature": "perfusion_pressure",
+          "importance": 0.00993453711271286
+        },
+        {
+          "feature": "sirs_score",
+          "importance": 0.007261449005454779
+        },
+        {
+          "feature": "thrombocytopenia",
+          "importance": 0.007251741364598274
+        },
+        {
+          "feature": "sirs_hr",
+          "importance": 0.006224244367331266
+        },
+        {
+          "feature": "systolic_bp",
+          "importance": 0.0059556118212640285
+        },
+        {
+          "feature": "diastolic_bp",
+          "importance": 0.0046000066213309765
+        },
+        {
+          "feature": "pao2",
+          "importance": 0.004311319440603256
+        },
+        {
+          "feature": "tachypnea_severity",
+          "importance": 0.0033335513435304165
+        },
+        {
+          "feature": "heart_rate",
+          "importance": 0.003280116245150566
+        },
+        {
+          "feature": "hepatic_dysfunction_score",
+          "importance": 0.0025435632560402155
+        },
+        {
+          "feature": "high_dose_vasopressors",
+          "importance": 0.0
+        },
+        {
+          "feature": "pulse_pressure_ratio",
+          "importance": 0.0
+        },
+        {
+          "feature": "pulse_pressure",
+          "importance": 0.0
+        }
+      ],
+      "feature_categories": {
+        "hemodynamic": {
+          "total_importance": "0.03546627",
+          "avg_importance": "0.0070932535",
+          "top_feature": "modified_shock_index",
+          "feature_count": 5
+        },
+        "respiratory": {
+          "total_importance": "0.16875145",
+          "avg_importance": "0.042187862",
+          "top_feature": "respiratory_support_score",
+          "feature_count": 4
+        },
+        "organ_dysfunction": {
+          "total_importance": "0.0025435633",
+          "avg_importance": "0.0006358908",
+          "top_feature": "hepatic_dysfunction_score",
+          "feature_count": 4
+        },
+        "sepsis_patterns": {
+          "total_importance": "0.40556312",
+          "avg_importance": "0.10139078",
+          "top_feature": "qsofa_score",
+          "feature_count": 4
+        },
+        "critical_illness": {
+          "total_importance": "0.0",
+          "avg_importance": "0.0",
+          "top_feature": "life_support_score",
+          "feature_count": 2
+        }
+      }
+    }
+  },
+  "feature_importance": [
+    {
+      "feature": "qsofa_score",
+      "importance": 0.3983016610145569
+    },
+    {
+      "feature": "oxygenation_index",
+      "importance": 0.3304983377456665
+    },
+    {
+      "feature": "respiratory_support_score",
+      "importance": 0.13931086659431458
+    },
+    {
+      "feature": "pf_ratio",
+      "importance": 0.02944057807326317
+    },
+    {
+      "feature": "modified_shock_index",
+      "importance": 0.02078835852444172
+    },
+    {
+      "feature": "shock_index",
+      "importance": 0.014677910134196281
+    },
+    {
+      "feature": "platelets",
+      "importance": 0.012286260724067688
+    },
+    {
+      "feature": "perfusion_pressure",
+      "importance": 0.00993453711271286
+    },
+    {
+      "feature": "sirs_score",
+      "importance": 0.007261449005454779
+    },
+    {
+      "feature": "thrombocytopenia",
+      "importance": 0.007251741364598274
+    },
+    {
+      "feature": "sirs_hr",
+      "importance": 0.006224244367331266
+    },
+    {
+      "feature": "systolic_bp",
+      "importance": 0.0059556118212640285
+    },
+    {
+      "feature": "diastolic_bp",
+      "importance": 0.0046000066213309765
+    },
+    {
+      "feature": "pao2",
+      "importance": 0.004311319440603256
+    },
+    {
+      "feature": "tachypnea_severity",
+      "importance": 0.0033335513435304165
+    },
+    {
+      "feature": "heart_rate",
+      "importance": 0.003280116245150566
+    },
+    {
+      "feature": "hepatic_dysfunction_score",
+      "importance": 0.0025435632560402155
+    },
+    {
+      "feature": "high_dose_vasopressors",
+      "importance": 0.0
+    },
+    {
+      "feature": "pulse_pressure_ratio",
+      "importance": 0.0
+    },
+    {
+      "feature": "pulse_pressure",
+      "importance": 0.0
+    },
+    {
+      "feature": "age_shock_index",
+      "importance": 0.0
+    },
+    {
+      "feature": "on_vasopressors",
+      "importance": 0.0
+    },
+    {
+      "feature": "vasopressor_load",
+      "importance": 0.0
+    },
+    {
+      "feature": "tachycardia_severity",
+      "importance": 0.0
+    },
+    {
+      "feature": "severe_hypotension",
+      "importance": 0.0
+    },
+    {
+      "feature": "hypotension_severity",
+      "importance": 0.0
+    },
+    {
+      "feature": "hypoxemia",
+      "importance": 0.0
+    },
+    {
+      "feature": "ards_severity",
+      "importance": 0.0
+    },
+    {
+      "feature": "hyperbilirubinemia",
+      "importance": 0.0
+    },
+    {
+      "feature": "estimated_gfr",
+      "importance": 0.0
+    },
+    {
+      "feature": "severe_hyperbilirubinemia",
+      "importance": 0.0
+    },
+    {
+      "feature": "severe_thrombocytopenia",
+      "importance": 0.0
+    },
+    {
+      "feature": "coagulopathy_score",
+      "importance": 0.0
+    },
+    {
+      "feature": "altered_mental_status",
+      "importance": 0.0
+    },
+    {
+      "feature": "coma",
+      "importance": 0.0
+    },
+    {
+      "feature": "neurological_dysfunction_score",
+      "importance": 0.0
+    },
+    {
+      "feature": "respiratory_failure",
+      "importance": 0.0
+    },
+    {
+      "feature": "work_of_breathing",
+      "importance": 0.0
+    },
+    {
+      "feature": "aki_risk_score",
+      "importance": 0.0
+    },
+    {
+      "feature": "severe_aki",
+      "importance": 0.0
+    },
+    {
+      "feature": "oliguria",
+      "importance": 0.0
+    },
+    {
+      "feature": "anuria",
+      "importance": 0.0
+    },
+    {
+      "feature": "hypoxemic_index",
+      "importance": 0.0
+    },
+    {
+      "feature": "severe_hypoxemia",
+      "importance": 0.0
+    },
+    {
+      "feature": "qsofa_mental_component",
+      "importance": 0.0
+    },
+    {
+      "feature": "qsofa_bp_component",
+      "importance": 0.0
+    },
+    {
+      "feature": "qsofa_respiratory_component",
+      "importance": 0.0
+    },
+    {
+      "feature": "sofa_liver",
+      "importance": 0.0
+    },
+    {
+      "feature": "sofa_coagulation",
+      "importance": 0.0
+    },
+    {
+      "feature": "sofa_respiratory",
+      "importance": 0.0
+    },
+    {
+      "feature": "multi_organ_failure",
+      "importance": 0.0
+    },
+    {
+      "feature": "organ_failure_count",
+      "importance": 0.0
+    },
+    {
+      "feature": "sirs_rr",
+      "importance": 0.0
+    },
+    {
+      "feature": "septic_shock_pattern",
+      "importance": 0.0
+    },
+    {
+      "feature": "relative_bradycardia",
+      "importance": 0.0
+    },
+    {
+      "feature": "hypothermia",
+      "importance": 0.0
+    },
+    {
+      "feature": "temperature_abnormal",
+      "importance": 0.0
+    },
+    {
+      "feature": "temperature_deviation",
+      "importance": 0.0
+    },
+    {
+      "feature": "sirs_temp",
+      "importance": 0.0
+    },
+    {
+      "feature": "fever",
+      "importance": 0.0
+    },
+    {
+      "feature": "oxygen_dependency",
+      "importance": 0.0
+    },
+    {
+      "feature": "high_fio2_requirement",
+      "importance": 0.0
+    },
+    {
+      "feature": "on_mechanical_ventilation",
+      "importance": 0.0
+    },
+    {
+      "feature": "decompensated_shock",
+      "importance": 0.0
+    },
+    {
+      "feature": "compensated_shock",
+      "importance": 0.0
+    },
+    {
+      "feature": "mean_arterial_pressure",
+      "importance": 0.0
+    },
+    {
+      "feature": "life_support_score",
+      "importance": 0.0
+    },
+    {
+      "feature": "critical_illness_score",
+      "importance": 0.0
+    },
+    {
+      "feature": "temperature",
+      "importance": 0.0
+    },
+    {
+      "feature": "respiratory_rate",
+      "importance": 0.0
+    },
+    {
+      "feature": "oxygen_saturation",
+      "importance": 0.0
+    },
+    {
+      "feature": "glasgow_coma_scale",
+      "importance": 0.0
+    },
+    {
+      "feature": "bilirubin",
+      "importance": 0.0
+    },
+    {
+      "feature": "creatinine",
+      "importance": 0.0
+    },
+    {
+      "feature": "fio2",
+      "importance": 0.0
+    },
+    {
+      "feature": "urine_output_24h",
+      "importance": 0.0
+    }
+  ]
+}

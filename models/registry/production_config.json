@@ -1,0 +1,9 @@
+{
+  "active_models": {},
+  "deployment_history": [],
+  "monitoring_config": {
+    "performance_threshold": 0.75,
+    "data_drift_threshold": 0.1,
+    "alert_email": null
+  }
+}

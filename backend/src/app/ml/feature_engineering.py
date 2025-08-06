@@ -35,55 +35,72 @@ class SepsisFeatureEngineer:
         Returns:
             Engineered features in same format as input
         """
-        # Handle single prediction vs batch
-        single_prediction = isinstance(parameters, dict)
-        if single_prediction:
-            df = pd.DataFrame([parameters])
-        else:
-            df = parameters.copy()
+        try:
+            # Validate input
+            if parameters is None or (isinstance(parameters, (dict, pd.DataFrame)) and len(parameters) == 0):
+                raise ValueError("Parameters cannot be None or empty")
+            
+            # Handle single prediction vs batch
+            single_prediction = isinstance(parameters, dict)
+            if single_prediction:
+                df = pd.DataFrame([parameters])
+            else:
+                df = parameters.copy()
+        except Exception as e:
+            logger.error(f"Error processing input parameters: {str(e)}")
+            raise ValueError(f"Invalid input parameters: {str(e)}")
         
-        # Validate and preprocess
-        df = self._preprocess_parameters(df)
-        
-        # Engineer features by category
-        features = pd.DataFrame(index=df.index)
-        
-        # 1. Hemodynamic features
-        hemodynamic_features = self._engineer_hemodynamic_features(df)
-        features = pd.concat([features, hemodynamic_features], axis=1)
-        
-        # 2. Respiratory features
-        respiratory_features = self._engineer_respiratory_features(df)
-        features = pd.concat([features, respiratory_features], axis=1)
-        
-        # 3. Organ dysfunction features
-        organ_features = self._engineer_organ_dysfunction_features(df)
-        features = pd.concat([features, organ_features], axis=1)
-        
-        # 4. Sepsis pattern features
-        sepsis_features = self._engineer_sepsis_pattern_features(df)
-        features = pd.concat([features, sepsis_features], axis=1)
-        
-        # 5. Support intervention features
-        support_features = self._engineer_support_features(df)
-        features = pd.concat([features, support_features], axis=1)
-        
-        # 6. Include raw features that are directly useful
-        raw_features = self._select_raw_features(df)
-        features = pd.concat([features, raw_features], axis=1)
-        
-        # Store feature names for consistency checking
-        self.feature_names = features.columns.tolist()
-        
-        # Add metadata if requested
-        if include_metadata:
-            metadata = self._calculate_feature_quality_metrics(df, features)
-            features = pd.concat([features, metadata], axis=1)
-        
-        # Return in same format as input
-        if single_prediction:
-            return features.iloc[0].to_dict()
-        return features
+        try:
+            # Validate and preprocess
+            df = self._preprocess_parameters(df)
+            
+            # Engineer features by category
+            features = pd.DataFrame(index=df.index)
+            
+            # 1. Hemodynamic features
+            hemodynamic_features = self._engineer_hemodynamic_features(df)
+            features = pd.concat([features, hemodynamic_features], axis=1)
+            
+            # 2. Respiratory features
+            respiratory_features = self._engineer_respiratory_features(df)
+            features = pd.concat([features, respiratory_features], axis=1)
+            
+            # 3. Organ dysfunction features
+            organ_features = self._engineer_organ_dysfunction_features(df)
+            features = pd.concat([features, organ_features], axis=1)
+            
+            # 4. Sepsis pattern features
+            sepsis_features = self._engineer_sepsis_pattern_features(df)
+            features = pd.concat([features, sepsis_features], axis=1)
+            
+            # 5. Support intervention features
+            support_features = self._engineer_support_features(df)
+            features = pd.concat([features, support_features], axis=1)
+            
+            # 6. Include raw features that are directly useful
+            raw_features = self._select_raw_features(df)
+            features = pd.concat([features, raw_features], axis=1)
+            
+            # Store feature names for consistency checking
+            self.feature_names = features.columns.tolist()
+            
+            # Add metadata if requested
+            if include_metadata:
+                metadata = self._calculate_feature_quality_metrics(df, features)
+                features = pd.concat([features, metadata], axis=1)
+            
+            # Return in same format as input
+            if single_prediction:
+                return features.iloc[0].to_dict()
+            return features
+            
+        except Exception as e:
+            logger.error(f"Error during feature engineering: {str(e)}")
+            # Return minimal features if engineering fails
+            if single_prediction:
+                return {"error": f"Feature engineering failed: {str(e)}"}
+            else:
+                return pd.DataFrame({"error": [f"Feature engineering failed: {str(e)}"] * len(df)})
     
     def _preprocess_parameters(self, df: pd.DataFrame) -> pd.DataFrame:
         """Validate and preprocess raw parameters"""
