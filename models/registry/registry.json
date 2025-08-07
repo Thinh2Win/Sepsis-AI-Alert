@@ -3,33 +3,33 @@
   "models": {
     "sepsis_xgboost": {
       "1.0.0": {
-        "registered_at": "2025-08-04T14:08:24.814633",
-        "model_path": "models\\registry\\sepsis_xgboost\\1.0.0\\model.pkl",
-        "metadata_path": "models\\registry\\sepsis_xgboost\\1.0.0\\metadata.json",
+        "registered_at": "2025-08-07T16:30:50.633572",
+        "model_path": "sepsis_xgboost\\1.0.0\\model.pkl",
+        "metadata_path": "sepsis_xgboost\\1.0.0\\metadata.json",
         "artifact_paths": {
-          "model": "models\\registry\\sepsis_xgboost\\1.0.0\\model.pkl",
-          "metadata": "models\\registry\\sepsis_xgboost\\1.0.0\\metadata.pkl",
-          "feature_config": "models\\registry\\sepsis_xgboost\\1.0.0\\feature_config.json",
-          "feature_importance": "models\\registry\\sepsis_xgboost\\1.0.0\\feature_importance.pkl"
+          "model": "sepsis_xgboost\\1.0.0\\model.pkl",
+          "metadata": "sepsis_xgboost\\1.0.0\\metadata.pkl",
+          "feature_config": "sepsis_xgboost\\1.0.0\\feature_config.json",
+          "feature_importance": "sepsis_xgboost\\1.0.0\\feature_importance.pkl"
         },
         "performance_summary": {
-          "auc_roc": 0.979669887278583,
+          "auc_roc": 0.9884355402605227,
           "sensitivity": 0,
           "specificity": 0
         }
       },
       "1.1.0": {
-        "registered_at": "2025-08-04T14:08:57.367502",
-        "model_path": "models\\registry\\sepsis_xgboost\\1.1.0\\model.pkl",
-        "metadata_path": "models\\registry\\sepsis_xgboost\\1.1.0\\metadata.json",
+        "registered_at": "2025-08-07T15:40:46.255816",
+        "model_path": "sepsis_xgboost\\1.1.0\\model.pkl",
+        "metadata_path": "sepsis_xgboost\\1.1.0\\metadata.json",
         "artifact_paths": {
-          "model": "models\\registry\\sepsis_xgboost\\1.1.0\\model.pkl",
-          "metadata": "models\\registry\\sepsis_xgboost\\1.1.0\\metadata.pkl",
-          "feature_config": "models\\registry\\sepsis_xgboost\\1.1.0\\feature_config.json",
-          "feature_importance": "models\\registry\\sepsis_xgboost\\1.1.0\\feature_importance.pkl"
+          "model": "sepsis_xgboost\\1.1.0\\model.pkl",
+          "metadata": "sepsis_xgboost\\1.1.0\\metadata.pkl",
+          "feature_config": "sepsis_xgboost\\1.1.0\\feature_config.json",
+          "feature_importance": "sepsis_xgboost\\1.1.0\\feature_importance.pkl"
         },
         "performance_summary": {
-          "auc_roc": 0.9932523616734142,
+          "auc_roc": 0.9962718223722415,
           "sensitivity": 0,
           "specificity": 0
         }
@@ -37,8 +37,8 @@
     }
   },
   "latest_versions": {
-    "sepsis_xgboost": "1.1.0"
+    "sepsis_xgboost": "1.0.0"
   },
   "metadata_version": "1.0.0",
-  "updated_at": "2025-08-04T14:08:57.367680"
+  "updated_at": "2025-08-07T16:30:50.633583"
 }

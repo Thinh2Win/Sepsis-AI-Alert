@@ -2,20 +2,20 @@
   "model_id": "sepsis_xgboost",
   "version": "1.1.0",
   "model_type": "XGBoost",
-  "training_timestamp": "2025-08-04T14:08:57.339308",
+  "training_timestamp": "2025-08-07T15:40:46.232125",
   "performance_metrics": {
-    "auc_roc": 0.9932523616734142,
-    "precision": 0.9473684210526315,
-    "recall": 0.9473684210526315,
-    "f1_score": 0.9473684210526315,
+    "auc_roc": 0.9962718223722415,
+    "precision": 0.9221453287197232,
+    "recall": 0.9285714285714286,
+    "f1_score": 0.9253472222222222,
     "confusion_matrix": [
       [
-        38,
-        1
+        3027,
+        45
       ],
       [
-        1,
-        18
+        41,
+        533
       ]
     ]
   },
@@ -100,7 +100,7 @@
   ],
   "training_config": {
     "data_config": {
-      "n_patients": 25,
+      "n_patients": 1500,
       "time_window_hours": 48,
       "test_size": 0.2,
       "val_size": 0.2,
@@ -126,7 +126,7 @@
     },
     "model_config": {
       "model_type": "xgboost",
-      "optimization_strategy": "none",
+      "optimization_strategy": "bayesian",
       "cv_folds": 3,
       "cv_scoring": "roc_auc",
       "early_stopping_rounds": 20,
@@ -138,31 +138,53 @@
       "primary_metric": "auc_roc",
       "clinical_threshold": 0.5,
       "target_sensitivity": 0.8,
-      "target_specificity": 0.8,
+      "target_specificity": 0.9,
       "min_ppv": 0.3,
       "min_npv": 0.95,
       "early_detection_window": 6,
-      "early_detection_target_auc": 0.75,
+      "early_detection_target_auc": 0.8,
       "analyze_feature_importance": true,
-      "use_shap_values": false,
+      "use_shap_values": true,
       "top_features_count": 20
     }
   },
   "data_config": {
-    "n_patients": 25,
-    "n_records": 331,
+    "n_patients": 1500,
+    "n_records": 18661,
     "time_window_hours": 48,
-    "sepsis_incidence": 0.3021148036253776,
+    "sepsis_incidence": 0.16880124323455334,
     "feature_count": 76,
-    "generation_timestamp": "2025-08-04T14:08:56.883684"
+    "generation_timestamp": "2025-08-07T15:40:31.282795",
+    "synthetic_data_validation": {
+      "total_records": 18661,
+      "synthetic_sepsis_rate": 0.144204490648947,
+      "clinical_score_agreement": {
+        "sofa_agreement": 0.7095546862440384,
+        "qsofa_agreement": 0.9819945340549809,
+        "news2_agreement": 0.9663469267456192
+      },
+      "clinical_score_discrepancy": {
+        "sofa_discrepancy": 0.2904453137559616,
+        "qsofa_discrepancy": 0.018005465945019023,
+        "news2_discrepancy": 0.03365307325438079
+      },
+      "traditional_scores_summary": {
+        "sofa_mean": 2.5276780451208403,
+        "qsofa_mean": 0.3434435453619849,
+        "news2_mean": 3.133004662129575
+      },
+      "validation_status": "COMPLETED",
+      "overall_agreement": 0.8859653823482128,
+      "validation_quality": "PASSED"
+    }
   },
-  "model_size_mb": 0.16141605377197266,
-  "checksum": "62a5ea4b11a56b43356fcde472f1f665a96c858d87efc4ef0f01485bfa6562e0",
+  "model_size_mb": 0.13836002349853516,
+  "checksum": "97baf88f0b1dc41d0354cc24c455f5ce49b6f186bdc0a902bf2113f1c6382965",
   "tags": [
     "xgboost",
     "baseline",
     "v1.1.0"
   ],
-  "description": "Sepsis prediction model v1.1.0 trained on 25 patients",
+  "description": "Sepsis prediction model v1.1.0 trained on 1500 patients",
   "created_by": "SepsisMLTrainer"
 }

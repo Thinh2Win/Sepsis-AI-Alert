@@ -186,15 +186,19 @@ class ModelRegistry:
         with open(metadata_path, 'w') as f:
             json.dump(metadata.to_dict(), f, indent=2)
         
-        # Save additional artifacts
-        artifact_paths = {'model': str(model_path), 'metadata': str(metadata_path)}
+        # Save additional artifacts - store as relative paths to registry root
+        model_path_relative = model_path.relative_to(self.registry_path)
+        metadata_path_relative = metadata_path.relative_to(self.registry_path)
+        
+        artifact_paths = {'model': str(model_path_relative), 'metadata': str(metadata_path_relative)}
         
         if artifacts:
             for name, source_path in artifacts.items():
                 if os.path.exists(source_path):
                     dest_path = model_dir / f"{name}.json" if name.endswith('config') else model_dir / f"{name}.pkl"
                     shutil.copy2(source_path, dest_path)
-                    artifact_paths[name] = str(dest_path)
+                    dest_path_relative = dest_path.relative_to(self.registry_path)
+                    artifact_paths[name] = str(dest_path_relative)
         
         # Update registry
         registry_data = self._load_registry()
@@ -204,8 +208,8 @@ class ModelRegistry:
         
         registry_data['models'][metadata.model_id][metadata.version] = {
             'registered_at': datetime.now().isoformat(),
-            'model_path': str(model_path),
-            'metadata_path': str(metadata_path),
+            'model_path': str(model_path_relative),
+            'metadata_path': str(metadata_path_relative),
             'artifact_paths': artifact_paths,
             'performance_summary': {
                 'auc_roc': metadata.performance_metrics.get('auc_roc', 0),
@@ -300,12 +304,18 @@ class ModelRegistry:
         
         model_info = model_versions[version]
         
-        # Load model
-        model_path = model_info['model_path']
-        model = joblib.load(model_path)
+        # Load model (resolve relative path against registry root)
+        model_path_str = model_info['model_path']
+        model_path = Path(model_path_str)
+        if not model_path.is_absolute():
+            model_path = (self.registry_path / model_path).resolve()
+        model = joblib.load(str(model_path))
         
-        # Load metadata
-        metadata_path = model_info['metadata_path']
+        # Load metadata (resolve relative path against registry root)
+        metadata_path_str = model_info['metadata_path']
+        metadata_path = Path(metadata_path_str)
+        if not metadata_path.is_absolute():
+            metadata_path = (self.registry_path / metadata_path).resolve()
         with open(metadata_path, 'r') as f:
             metadata_dict = json.load(f)
         metadata = ModelMetadata.from_dict(metadata_dict)

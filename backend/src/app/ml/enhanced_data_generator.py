@@ -199,28 +199,28 @@ class EnhancedSepsisDataGenerator:
             temp_decrease = progression * np.random.uniform(1.0, 2.5)
             current["temperature"] = baseline["temperature"] - temp_decrease
         
-        # Cardiovascular: tachycardia and hypotension
-        hr_increase = progression * np.random.uniform(20, 60)
+        # Cardiovascular: subtle early tachycardia and mild hypotension
+        hr_increase = progression * np.random.uniform(8, 20)  # Reduced from 20-60
         current["heart_rate"] = baseline["heart_rate"] + hr_increase
         
-        # Hypotension (distributive shock)
-        bp_decrease = progression * np.random.uniform(15, 50)
+        # Mild hypotension (early distributive changes)
+        bp_decrease = progression * np.random.uniform(5, 20)  # Reduced from 15-50
         current["systolic_bp"] = baseline["systolic_bp"] - bp_decrease
         current["diastolic_bp"] = current["systolic_bp"] * 0.6 + np.random.normal(0, 3)
         current["mean_arterial_pressure"] = (
             current["systolic_bp"] + 2 * current["diastolic_bp"]
         ) / 3
         
-        # Respiratory: tachypnea and hypoxemia
-        rr_increase = progression * np.random.uniform(8, 18)
+        # Respiratory: subtle early tachypnea and mild hypoxemia
+        rr_increase = progression * np.random.uniform(2, 8)  # Reduced from 8-18
         current["respiratory_rate"] = baseline["respiratory_rate"] + rr_increase
         
-        # Oxygen saturation decreases
-        o2_decrease = progression * np.random.uniform(3, 12)
+        # Mild oxygen saturation decreases
+        o2_decrease = progression * np.random.uniform(1, 4)  # Reduced from 3-12
         current["oxygen_saturation"] = baseline["oxygen_saturation"] - o2_decrease
         
-        # PaO2 decreases (lung dysfunction)
-        pao2_decrease = progression * np.random.uniform(15, 40)
+        # Mild PaO2 decreases (early lung dysfunction)
+        pao2_decrease = progression * np.random.uniform(5, 15)  # Reduced from 15-40
         current["pao2"] = baseline["pao2"] - pao2_decrease
         
         # FiO2 increases as patient requires more oxygen
@@ -238,17 +238,17 @@ class EnhancedSepsisDataGenerator:
         
         # Organ dysfunction markers
         
-        # Renal: creatinine increase, urine output decrease
-        creat_increase = progression * np.random.exponential(1.5)
+        # Renal: mild creatinine increase, slight urine output decrease
+        creat_increase = progression * np.random.uniform(0.2, 0.8)  # More controlled vs exponential
         current["creatinine"] = baseline["creatinine"] + creat_increase
-        current["urine_output_24h"] = baseline["urine_output_24h"] * (1 - progression * 0.8)
+        current["urine_output_24h"] = baseline["urine_output_24h"] * (1 - progression * 0.3)  # Reduced from 0.8
         
-        # Hepatic: bilirubin increase
-        bili_increase = progression * np.random.exponential(2.0)
+        # Hepatic: mild bilirubin increase
+        bili_increase = progression * np.random.uniform(0.3, 1.2)  # More controlled vs exponential
         current["bilirubin"] = baseline["bilirubin"] + bili_increase
         
-        # Hematologic: thrombocytopenia
-        platelet_decrease = progression * np.random.uniform(0.4, 0.7)
+        # Hematologic: mild thrombocytopenia
+        platelet_decrease = progression * np.random.uniform(0.1, 0.3)  # Reduced from 0.4-0.7
         current["platelets"] = baseline["platelets"] * (1 - platelet_decrease)
         
         # Support devices and interventions
@@ -264,10 +264,10 @@ class EnhancedSepsisDataGenerator:
             progression > 0.7 and pf_ratio < 200
         )
         
-        # Vasopressor support (septic shock)
-        if progression > 0.6 and current["mean_arterial_pressure"] < 65:
-            # Norepinephrine first-line
-            current["norepinephrine"] = np.random.uniform(0.05, 0.5 * progression)
+        # Early vasopressor support (early intervention)
+        if progression > 0.4 and current["mean_arterial_pressure"] < 70:  # Earlier intervention
+            # Norepinephrine first-line (lower doses)
+            current["norepinephrine"] = np.random.uniform(0.03, 0.15)  # Much lower doses
             
             # Additional pressors for refractory shock
             if progression > 0.8:

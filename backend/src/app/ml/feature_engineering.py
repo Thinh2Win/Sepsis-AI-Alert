@@ -121,6 +121,9 @@ class SepsisFeatureEngineer:
         for col, default in defaults.items():
             if col in df.columns:
                 df[col] = df[col].fillna(default)
+            else:
+                # Add missing columns with default values
+                df[col] = default
         
         # Ensure MAP is calculated if missing
         if 'mean_arterial_pressure' not in df.columns or df['mean_arterial_pressure'].isna().any():

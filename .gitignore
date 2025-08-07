@@ -499,3 +499,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# ML Training Artifacts (timestamped outputs)
+models/sepsis_model_v*_*.pkl
+models/sepsis_model_v*_*.json
+models/sepsis_model_v*_*.csv

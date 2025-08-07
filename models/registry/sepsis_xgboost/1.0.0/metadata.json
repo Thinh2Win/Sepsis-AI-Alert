@@ -2,20 +2,20 @@
   "model_id": "sepsis_xgboost",
   "version": "1.0.0",
   "model_type": "XGBoost",
-  "training_timestamp": "2025-08-04T14:08:24.782066",
+  "training_timestamp": "2025-08-07T16:30:50.604638",
   "performance_metrics": {
-    "auc_roc": 0.979669887278583,
-    "precision": 1.0,
-    "recall": 0.8260869565217391,
-    "f1_score": 0.9047619047619048,
+    "auc_roc": 0.9884355402605227,
+    "precision": 0.9361702127659575,
+    "recall": 0.9145496535796767,
+    "f1_score": 0.9252336448598131,
     "confusion_matrix": [
       [
-        108,
-        0
+        1997,
+        27
       ],
       [
-        4,
-        19
+        37,
+        396
       ]
     ]
   },
@@ -100,7 +100,7 @@
   ],
   "training_config": {
     "data_config": {
-      "n_patients": 50,
+      "n_patients": 1000,
       "time_window_hours": 48,
       "test_size": 0.2,
       "val_size": 0.2,
@@ -149,20 +149,25 @@
     }
   },
   "data_config": {
-    "n_patients": 50,
-    "n_records": 632,
+    "n_patients": 1000,
+    "n_records": 12397,
     "time_window_hours": 48,
-    "sepsis_incidence": 0.17721518987341772,
+    "sepsis_incidence": 0.17092845043155602,
     "feature_count": 76,
-    "generation_timestamp": "2025-08-04T14:08:24.308369"
+    "generation_timestamp": "2025-08-07T16:30:45.376487",
+    "synthetic_data_validation": {
+      "validation_status": "FAILED",
+      "error": "'charmap' codec can't encode character '\\u2265' in position 22: character maps to <undefined>",
+      "message": "Could not validate synthetic labels against clinical scores"
+    }
   },
-  "model_size_mb": 0.14844608306884766,
-  "checksum": "a2d00a5d8a70e95de2ff2042ae9f268e704448f804bb5bd1a08291c536a8022a",
+  "model_size_mb": 0.26160335540771484,
+  "checksum": "03917da467fcf6f67fc208786a6bdda437721bff0e197581aa6454f5a4d48d5a",
   "tags": [
     "xgboost",
     "baseline",
     "v1.0.0"
   ],
-  "description": "Sepsis prediction model v1.0.0 trained on 50 patients",
+  "description": "Sepsis prediction model v1.0.0 trained on 1000 patients",
   "created_by": "SepsisMLTrainer"
 }
