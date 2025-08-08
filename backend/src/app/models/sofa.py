@@ -678,6 +678,10 @@ class SepsisAssessmentResponse(BaseModel):
     # Calculation metadata
     calculation_metadata: CalculationMetadata
     
+    # ML predictions (optional, added for ML showcase integration)
+    ml_prediction: Optional[Dict[str, Any]] = None
+    clinical_advantage: Optional[str] = None
+    
     @computed_field
     @property
     def overall_risk_level(self) -> str:
