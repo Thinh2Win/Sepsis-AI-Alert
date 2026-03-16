@@ -1,6 +1,6 @@
 # Sepsis AI EHR Alert System
 
-An **AI-powered Clinical Decision Support (CDS) tool** that combines **machine learning early detection** with traditional clinical scoring to identify sepsis **4-6 hours before conventional methods**. Built with FHIR R4 interoperability standards and production-ready XGBoost models achieving **AUC 0.980 performance**.
+An **AI-powered Clinical Decision Support (CDS) tool** that combines **machine learning early detection** with traditional clinical scoring to identify sepsis **4-6 hours before conventional methods**. Built with FHIR R4 interoperability standards and XGBoost models.
 
 ---
 
