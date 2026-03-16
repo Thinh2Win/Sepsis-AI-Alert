@@ -10,11 +10,11 @@ An **AI-powered Clinical Decision Support (CDS) tool** that combines **machine l
 
 This project showcases **cutting-edge machine learning** and **healthcare interoperability** in a production-ready clinical environment. Using Fast Healthcare Interoperability Resources (FHIR R4), this system:
 
-* **ML-Powered Early Detection**: XGBoost models with **76 engineered features** detect sepsis 4-6 hours before traditional methods
+* **ML-Powered Early Detection**: XGBoost models detect sepsis 4-6 hours before traditional methods
 * **Real-Time Clinical Analysis**: Ingests live patient data from Epic FHIR R4 with comprehensive clinical parameters
 * **Triple Scoring System**: SOFA, qSOFA, and NEWS2 with **85% API optimization** through intelligent parameter reuse
 * **Production Integration**: Live ML inference with **<100ms latency** and graceful fallback mechanisms
-* **Clinical Validation**: **AUC 0.980 performance** with evidence-based feature engineering from peer-reviewed research
+* **Clinical Validation**: evidence-based feature engineering from peer-reviewed research
 
 ---
 
